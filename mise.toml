@@ -69,7 +69,7 @@ echo "virtual desktop = $WINE_VDESKTOP"
 '''
 
 [tasks.bw-run]
-description = "BW 실행 → 메인 메뉴 확인 (A1 통과 조건)"
+description = "BW 단독 실행 → 메인 메뉴 확인 (A1 통과 조건)"
 depends = ["bw-download", "wine-vdesktop"]
 run = '''
 #!/usr/bin/env bash
@@ -77,4 +77,22 @@ set -euo pipefail
 sc_dir=$(dirname "$(find "$BW_DIR" -iname StarCraft.exe -print -quit)")
 cd "$sc_dir"
 wine StarCraft.exe
+'''
+
+# --- A2: injectory로 BWAPI 인젝션 검증 (봇 없음, ADR-012) ---
+# BWAPI 공식 배포는 ExampleAIModule 소스만 주고 빌드된 .dll이 없다 → A2는
+# "Wine에서 BWAPI 주입 자체가 되는가"만 격리 검증한다. 실제 봇 동작은 A3.
+
+[tasks.bw-bwapi]
+description = "injectory로 BWAPI 주입해 BW 실행 → 크래시 없이 BWAPI 로드 확인 (A2 검증)"
+depends = ["bw-download"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$BW_DIR"
+# injectory가 BWAPI.dll + WMode.dll 을 StarCraft.exe에 주입 (--verbose로 주입 로그).
+# 봇은 bwapi.ini의 ai= 가 비어 있어 로드되지 않는다 (인젝션 자체만 검증).
+# BWAPI 오버레이/로그는 매치 진입 후에 나타나므로 single-player 게임까지 들어가 확인.
+wine injectory_x86.exe --verbose --launch StarCraft.exe \
+  --inject bwapi-data/BWAPI.dll WMode.dll
 '''

@@ -19,7 +19,7 @@
 
 ## ADR-002: 봇 DLL은 Chaoslauncher의 BWAPI Injector로 주입
 
-**Status**: Accepted
+**Status**: Superseded by ADR-012
 
 **Context**: Classic BWAPI 봇은 DLL로 빌드되고 StarCraft.exe에 주입되어야 한다. 주입 방식은 여러 가지 (Chaoslauncher / BWHeadless / 수동 인젝션).
 
@@ -148,4 +148,34 @@
 
 **Rationale**: Blizzard가 리마스터 출시 후 AIIDE 대회용으로 1.16.1 재호스팅을 허가했고, 이 파일은 대회 운영자 본인 도메인에서 제공된다 → 정당성과 안정성 모두 확보. 게임과 BWAPI 4.4.0이 한 패키지라 A1(BW 실행)과 A2(BWAPI 설치)를 같은 자료로 진행할 수 있다. 우리 환경(Wine + MinGW-w64 + BWAPI 4.4.0)과 STARTcraft의 Linux 셋업이 일치한다.
 
-**Consequences**: 무료 리마스터 배포판은 이 프로젝트에 쓸 수 없다 (호환성). STARTcraft는 기본적으로 Injectory로 주입하지만 우리는 ADR-002에 따라 Chaoslauncher를 쓴다 — zip에 Chaoslauncher가 포함되지 않으면 별도 다운로드가 필요할 수 있다 (A2에서 확인). 미러 URL이 죽으면 cs.mun.ca 구 도메인이 아니라 davechurchill.ca 최신 경로를 재확인한다.
+**Consequences**: 무료 리마스터 배포판은 이 프로젝트에 쓸 수 없다 (호환성). STARTcraft는 Injectory로 주입하며 Chaoslauncher를 포함하지 않는다 → A2 검증 결과 Chaoslauncher 대신 injectory를 채택했다 ([ADR-012](#adr-012)). 미러 URL이 죽으면 cs.mun.ca 구 도메인이 아니라 davechurchill.ca 최신 경로를 재확인한다.
+
+
+## ADR-012: 봇 DLL 주입은 injectory CLI (ADR-002 대체)
+
+**Status**: Accepted
+
+**Context**: ADR-002는 Chaoslauncher의 BWAPI Injector를 전제했다. 그러나 실제 확보한 STARTcraft 패키지([ADR-011](#adr-011))는 Chaoslauncher를 포함하지 않고 `injectory_x86.exe`(CLI 인젝터)와 주입용 bat을 제공한다. 봇 선택은 `bwapi-data/bwapi.ini`의 `ai =` 줄로 한다.
+
+**Decision**: injectory CLI로 BWAPI.dll + WMode.dll을 StarCraft.exe에 주입한다. 봇 DLL 경로는 bwapi.ini의 `ai =`로 지정. Chaoslauncher는 쓰지 않는다.
+
+```
+wine injectory_x86.exe --launch StarCraft.exe --inject bwapi-data/BWAPI.dll WMode.dll
+```
+
+**Rationale**: injectory는 이미 패키지에 있어 추가 확보가 없다. CLI라 `mise run` 워크플로(ADR-011에서 구축)에 그대로 들어가고 A3~A6 반복 실행에서 GUI 클릭이 사라진다. ADR-002가 Chaoslauncher를 고른 두 번째 근거("MVP는 시각 확인이 필요하니 헤드리스 자동화 무의미")는 injectory를 배제하지 않는다 — injectory는 게임 화면을 똑같이 띄우고 *주입 단계만* CLI로 자동화할 뿐이다. Wine + i3 + CLI 중심 환경에 더 맞는다.
+
+**Consequences**: 봇 전환은 bwapi.ini 편집(GUI 드롭다운 아님)으로 한다. BWAPI 위키 스크린샷은 대부분 Chaoslauncher 기준이라 GUI 튜토리얼과 1:1 대응하지 않지만, STARTcraft/BASIL 문서가 injectory 경로를 다룬다. injectory가 Wine에서 BWAPI를 정상 주입하는지는 A2에서 검증한다 ([ADR-013](#adr-013)).
+
+
+## ADR-013: A2는 봇 없이 BWAPI 인젝션만 검증
+
+**Status**: Accepted
+
+**Context**: A2의 원래 정의는 "Chaoslauncher + ExampleAIModule 검증 (스톡 봇 동작)"이었다. 그러나 BWAPI 4.4.0 공식 배포(BWAPI.7z)는 ExampleAIModule의 **소스만** 제공하고 빌드된 `.dll`이 없다 (MSVC 빌드 전제). 빌드된 스톡 봇을 외부에서 구하는 것은 불확실하고, 우리 MinGW 툴체인은 A3에서야 들어온다.
+
+**Decision**: A2를 "봇 없이 BWAPI 인젝션 파이프라인 검증"으로 축소한다. bwapi.ini의 `ai =`를 비운 채 injectory로 BWAPI를 주입하고, BW가 BWAPI 로드 상태로 크래시 없이 실행되는지(메뉴/게임 진입, `bwapi-data/logs/` 정상)를 확인한다. "봇이 실제로 움직인다"는 검증은 A3(자체 hello DLL)로 옮긴다.
+
+**Rationale**: A2의 본질적 가치는 "Wine에서 BWAPI 주입 자체가 동작하는가"의 격리 검증이고, 이는 봇 없이도 달성된다. 빌드된 스톡 봇 확보는 불확실한 우회로다. 인젝션(A2)과 자체 코드 로딩(A3)을 분리해 두면 A3 실패 시 원인을 좁힐 수 있다.
+
+**Consequences**: A2 통과 조건이 "스톡 봇이 자기 할 일을 한다"에서 "BWAPI가 주입된 채 크래시 없이 실행된다"로 바뀐다. AGENTS.md A2 항목 문구도 이에 맞춘다.
