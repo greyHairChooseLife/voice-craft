@@ -7,10 +7,29 @@
 
 ### Wine + BW 1.16.1
 
--   Arch에서 Wine 설치 (`wine`, `winetricks`).
--   별도 WINEPREFIX 권장: `export WINEPREFIX="$HOME/.wine-bw"`.
--   BW 1.16.1 설치 후 `wine StarCraft.exe`로 메인 메뉴 진입 확인.
+작업은 루트 `mise.toml`의 task로 정의되어 있다. 게임 확보 근거는 [ADR-011](decisions.md#adr-011). `WINEPREFIX`(`~/.wine-bw`)·`WINEARCH`(`win64`)·`BW_DIR`(`~/sc-bw-1161`)는 `mise.toml`의 전역 `[env]`에서 모든 task에 자동 주입되므로 수동 export가 필요 없다. Wine 11+는 wow64 단일 빌드라 `win64` prefix에서 32-bit BW를 실행한다 ([ADR-001](decisions.md#adr-001) Note 참조).
+
+순서:
+
+```bash
+# 1. BW 1.16.1 + BWAPI 4.4.0 패키지 다운로드·압축 해제 (~97 MB, 멱등)
+mise run bw-download
+
+# 2. Wine 등 시스템 패키지 설치 — sudo 필요, '!' 접두로 실행
+#    ([multilib] 저장소가 켜져 있어야 32-bit wine이 깔린다)
+! mise run system-setup
+
+# 3. 전용 WINEPREFIX 초기화 (win64/wow64, 멱등)
+mise run wine-init
+
+# 4. 게임 실행 → 메인 메뉴 확인 (bw-download·wine-vdesktop 자동 선행)
+mise run bw-run
+```
+
+-   `bw-run`은 `wine-vdesktop`에 `depends` → BW가 640x480 가상 데스크톱 창(윈도우 모드)으로 뜬다. i3-wm이 이 창을 일반 타일/플로팅 창으로 배치한다.
+-   **BW 1.16.1은 내부 렌더가 640x480 고정**이라 가상 데스크톱 크기(`WINE_VDESKTOP`)를 키워도 게임은 커지지 않고 검은 여백만 늘어난다 → 창을 게임 크기(640x480)에 맞춰 둔다.
 -   체크포인트 A1 통과 조건: **메인 메뉴 화면이 보인다.**
+-   안 뜨면 → ADR-001대로 첫 의심처는 Wine 환경 (win64/wow64 prefix인지, multilib wine인지).
 
 ### Chaoslauncher + BWAPI
 
