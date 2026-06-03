@@ -36,7 +36,7 @@
 
 ### MVP-A — 봇 + nc
 
--   [ ] A1. Wine + BW 실행 확인 (메인 메뉴 도달)
+-   [x] A1. Wine + BW 실행 확인 (메인 메뉴 도달)
 -   [ ] A2. Chaoslauncher + ExampleAIModule 검증 (스톡 봇 동작)
 -   [ ] A3. MinGW 툴체인 + 자체 DLL 로딩 (게임 채팅에 "hello" 출력)
 -   [ ] A4. 테스트 맵 (ScmDraft 2, 배럭 소유자 확인)

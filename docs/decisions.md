@@ -14,6 +14,8 @@
 
 **Consequences**: Wine 버전·BW 패치 레벨 핀 작업이 필요할 수 있다. "런치 자체가 안 됨" 문제의 첫 의심처는 항상 Wine 환경.
 
+**Note (2026-06-04, Wine 11.10)**: Arch 공식 `wine`는 wow64 단일 빌드라 순수 32-bit prefix(`WINEARCH=win32`)를 만들 수 없다 (`win32 ... not supported in wow64 mode` 에러). 따라서 prefix는 `WINEARCH=win64`로 생성하고, 32-bit인 BW 1.16.1은 wine의 wow64 계층이 실행한다. BWAPI 4.4.0 인젝션이 wow64에서 정상 동작하는지는 A2에서 검증한다 — 만약 실패하면 그때 32-bit 전용 wine 빌드를 별도 옵션으로 재검토한다.
+
 
 ## ADR-002: 봇 DLL은 Chaoslauncher의 BWAPI Injector로 주입
 
@@ -130,3 +132,20 @@
 **Rationale**: 솔로 MVP 단계에서 빈 문서는 부채. 사실/이유/조작을 세 곳으로 명확히 분리하면 갱신 위치를 헷갈리지 않는다. 인라인 ADR 링크는 architecture.md의 특정 주장이 깨졌을 때 정확히 어느 ADR을 다시 봐야 하는지 알려준다.
 
 **Consequences**: 새 결정마다 ADR 추가 + architecture.md 인라인 링크 갱신이 필요. AGENTS.md의 "문서 유지 규칙" 섹션이 이 흐름을 강제한다.
+
+
+## ADR-011: BW 1.16.1은 STARTcraft 재호스팅 패키지로 확보
+
+**Status**: Accepted
+
+**Context**: BWAPI 4.x Classic은 BW 1.16.1 바이너리의 정확한 메모리 오프셋에 의존한다. Blizzard의 무료 StarCraft 배포판은 1.18+ 리마스터 클라이언트라 BWAPI Classic과 호환되지 않으며, 리마스터 출시 이후 공식 경로로 1.16.1을 받을 수 없다. 솔로 개발자가 정당하게 1.16.1 게임 폴더를 확보할 경로가 필요하다.
+
+**Decision**: David Churchill(AIIDE StarCraft AI Competition 운영자)의 STARTcraft 배포 패키지를 사용한다.
+
+-   URL: `https://davechurchill.ca/starcraft/files/startcraft/scbw_bwapi440.zip`
+-   내용: BW 1.16.1 게임 파일 + BWAPI 4.4.0이 합쳐진 ~97 MB zip.
+-   검증(2026-06-04): HTTP 200, `application/zip`, 101,643,261 bytes, ZIP 매직바이트 `PK\x03\x04` 정상.
+
+**Rationale**: Blizzard가 리마스터 출시 후 AIIDE 대회용으로 1.16.1 재호스팅을 허가했고, 이 파일은 대회 운영자 본인 도메인에서 제공된다 → 정당성과 안정성 모두 확보. 게임과 BWAPI 4.4.0이 한 패키지라 A1(BW 실행)과 A2(BWAPI 설치)를 같은 자료로 진행할 수 있다. 우리 환경(Wine + MinGW-w64 + BWAPI 4.4.0)과 STARTcraft의 Linux 셋업이 일치한다.
+
+**Consequences**: 무료 리마스터 배포판은 이 프로젝트에 쓸 수 없다 (호환성). STARTcraft는 기본적으로 Injectory로 주입하지만 우리는 ADR-002에 따라 Chaoslauncher를 쓴다 — zip에 Chaoslauncher가 포함되지 않으면 별도 다운로드가 필요할 수 있다 (A2에서 확인). 미러 URL이 죽으면 cs.mun.ca 구 도메인이 아니라 davechurchill.ca 최신 경로를 재확인한다.
