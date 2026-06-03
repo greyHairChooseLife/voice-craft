@@ -2,52 +2,47 @@
 
 스타크래프트: 브루드워를 **음성 명령만으로** 플레이할 수 있게 하는 도구.
 
--   사용자가 마이크에 명령을 말하면, 도구가 이를 게임 입력으로 변환해 BW에 전달.
--   본체는 음성 명령 모드(Voice-Only Command). 마우스/키보드 조작 없이 음성으로만 운영.
+
+## MVP
+
+단일 명령 "마린 생산" → 사전 배치된 배럭에서 마린 1기 생산.
+
+두 단계로 나눠 진행한다. 자세한 정의는 [docs/architecture.md](docs/architecture.md), 실행 절차는 [docs/runbook.md](docs/runbook.md).
+
+-   **MVP-A**: C++ 봇 + `nc`로 JSON 수동 주입 → 마린 등장.
+-   **MVP-B**: 전체 음성 경로 (PTT → STT → NLU → JSON → 봇) → 마린 등장.
 
 
-## MPV
+## 문서 구조
 
--   구현: 단일 명령 "마린 생산" → 사전 배치된 배럭에서 마린 1기 생산.
--   테스트 맵: 배럭 1개 + 미네랄 1000+ + 서플라이 여유 (ScmDraft 2로 제작).
--   작업 순서:
-    1. C++ BWAPI 봇 먼저. `nc localhost <port>`로 JSON 수동 주입해 검증.
-    2. Python 음성 서비스 나중.
+-   [`docs/architecture.md`](docs/architecture.md) — **현재 구조 스냅샷**. "지금 어떻게 생겼나?" 알고 싶을 때. 각 결정 옆에 `[ADR-NNN](decisions.md#adr-nnn)` 인라인 링크.
+-   [`docs/decisions.md`](docs/decisions.md) — **ADR 로그**. "왜 이렇게 했나?" 알고 싶을 때. architecture.md에서 링크됨. 각 ADR에 Status 필드 (Accepted / Superseded by ADR-NNN / Rejected).
+-   [`docs/runbook.md`](docs/runbook.md) — **실행 절차**. "지금 한 번 돌려보고 싶다" 할 때. 환경 설정, 빌드, 실행, 디버깅 명령어.
 
 
-## 아키텍처
+## 문서 유지 규칙
 
-두 개 프로세스 + IPC 구조.
+작업 시 아래 순서를 따른다.
 
-```
-[키 누름]
-  ↓
-[mic 녹음]
-  ↓
-[faster-whisper STT]
-  ↓
-[키워드 딕셔너리 NLU]
-  ↓
-[JSON 한 줄] → TCP localhost → [C++ BWAPI 봇]
-                                   ↓
-                               [BWAPI: barracks.train(Marine)]
-                                   ↓
-                               [게임 화면에 마린 등장]
-```
+1.  **새 결정**: `decisions.md`에 ADR 추가 → `architecture.md`의 해당 부분 갱신 + ADR 링크 추가.
+2.  **기존 결정 변경**: 옛 ADR을 `Status: Superseded by ADR-NNN`으로 표기 → 새 ADR 추가 (삭제하지 않음) → `architecture.md` 갱신.
+3.  **새 실행 절차 / 단축키 / 설정 변경**: `runbook.md` 즉시 갱신.
+4.  **체크포인트 완료**: 이 파일의 체크박스 갱신.
 
-### 게임 측
+새 정보를 어디에 적을지 모를 때는: **사실/스냅샷 → architecture.md**, **이유 → decisions.md**, **명령어/조작 → runbook.md**.
 
--   **BW 1.16.1 + Classic BWAPI**.
--   **C++ BWAPI 봇**: 명령 받아 BWAPI 호출만 하는 얇은 레이어.
 
-### 음성 측 (Python)
+## 개발 일정
 
--   **트리거**: 푸시-투-토크.
--   **STT**: faster-whisper (로컬).
--   **NLU**: 키워드 딕셔너리 + 부분일치 스캔.
+### MVP-A — 봇 + nc
 
-### IPC
+-   [ ] A1. Wine + BW 실행 확인 (메인 메뉴 도달)
+-   [ ] A2. Chaoslauncher + ExampleAIModule 검증 (스톡 봇 동작)
+-   [ ] A3. MinGW 툴체인 + 자체 DLL 로딩 (게임 채팅에 "hello" 출력)
+-   [ ] A4. 테스트 맵 (ScmDraft 2, 배럭 소유자 확인)
+-   [ ] A5. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코)
+-   [ ] A6. JSON 디스패치 → 마린 생산 (**MVP-A 완료**)
 
--   TCP localhost
--   JSON lines. 예: `{"cmd": "produce_marine"}`.
--   Python = 서버 (여러 매치 동안 유지), C++ 봇 = 클라이언트 (매치 시작 시 연결).
+### MVP-B — 음성 경로
+
+MVP-A 완료 후 별도 grilling 세션으로 확정한다. PTT 방식, faster-whisper 모델 크기, NLU 키워드 구조, 마이크 캡처 라이브러리 등을 그때 정한다.
