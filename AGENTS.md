@@ -5,12 +5,12 @@
 
 ## MVP
 
-단일 명령 "마린 생산" → 사전 배치된 배럭에서 마린 1기 생산.
+단일 명령 "SCV 생산" → 스톡 melee 시작 Command Center에서 SCV 1기 생산.
 
 두 단계로 나눠 진행한다. 자세한 정의는 [docs/architecture.md](docs/architecture.md), 실행 절차는 [docs/runbook.md](docs/runbook.md).
 
--   **MVP-A**: C++ 봇 + `nc`로 JSON 수동 주입 → 마린 등장.
--   **MVP-B**: 전체 음성 경로 (PTT → STT → NLU → JSON → 봇) → 마린 등장.
+-   **MVP-A**: C++ 봇 + `nc`로 JSON 수동 주입 → SCV 등장.
+-   **MVP-B**: 전체 음성 경로 (PTT → STT → NLU → JSON → 봇) → SCV 등장.
 
 
 ## 문서 구조
@@ -32,6 +32,13 @@
 새 정보를 어디에 적을지 모를 때는: **사실/스냅샷 → architecture.md**, **이유 → decisions.md**, **명령어/조작 → runbook.md**.
 
 
+## 에이전트 실행 규칙
+
+-   **Docker 명령 (`docker`, `docker compose` 등)과 mise 태스크 (`mise run ...`)는 에이전트가 직접 실행하지 않는다.**
+-   해당 명령이 필요하면 실행하지 말고, 사용자에게 실행할 명령을 알려주고 직접 돌려달라고 요청한다.
+-   사용자가 결과를 붙여넣어 주면 그걸 바탕으로 작업을 이어간다.
+
+
 ## 개발 일정
 
 ### MVP-A — 봇 + nc
@@ -39,9 +46,8 @@
 -   [x] A1. Wine + BW 실행 확인 (메인 메뉴 도달) - `chore_wine-and-BW`
 -   [x] A2. injectory로 BWAPI 인젝션 검증 (봇 없이 주입·실행, ADR-013) - `chore_wine-and-BW`
 -   [x] A3. MinGW(Docker) + BWAPI Client API 봇 .exe (게임 채팅에 "hello" 출력, ADR-014) - `chore_bot-boilerplate`
--   [ ] A4. 테스트 맵 (ScmDraft 2, 배럭 소유자 확인)
--   [ ] A5. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코)
--   [ ] A6. JSON 디스패치 → 마린 생산 (**MVP-A 완료**)
+-   [ ] A4. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코)
+-   [ ] A5. JSON 디스패치 → SCV 생산 (스톡 melee CC에서 train, ADR-006/007) (**MVP-A 완료**)
 
 ### MVP-B — 음성 경로
 
