@@ -32,7 +32,7 @@
 
 ## ADR-003: 봇은 MinGW-w64로 Linux에서 크로스컴파일
 
-**Status**: Accepted
+**Status**: Superseded by ADR-014
 
 **Context**: 봇은 32-bit Windows DLL. 개발 머신은 Arch Linux. 컴파일을 어디서 어떻게 할지 결정해야 한다.
 
@@ -55,6 +55,8 @@
 
 **Consequences**: 봇은 재연결 루프가 필수. 누락 시 두 번째 매치부터 작동하지 않는다.
 
+**Note ([ADR-014](#adr-014))**: 본 ADR의 Context에 적힌 "BWAPI는 매치 종료 시 `AIModule`을 폐기한다"는 AIModule(DLL) 방식 전제였다. ADR-014에서 봇이 Client API(.exe)로 바뀌면서, 봇은 AIModule이 아니라 독립 프로세스로 살아있고 매치 사이에 `BWAPIClient.connect()`를 재시도한다. "봇=클라이언트, 재연결 루프 필수"라는 결론과 Python=서버 구조는 그대로 유효하다 — 봇이 BWAPI(게임)에 재연결하는 것과, 봇이 Python(명령 소스)에 재연결하는 것은 별개의 두 연결이다.
+
 
 ## ADR-005: 봇 TCP I/O는 `onFrame`에서 폴링하는 비차단 소켓
 
@@ -67,6 +69,8 @@
 **Rationale**: localhost TCP는 마이크로초 단위로 반환되므로 워커 스레드의 이득이 없다. 워커를 둬도 BWAPI 호출은 결국 `onFrame`에서 해야 하므로 단순한 폴링이 lock-free로 충분.
 
 **Consequences**: 루프가 한 번에 한 명령만 처리하면 자연스럽게 "프레임당 한 명령"으로 rate-limit된다. MVP 트래픽(음성 발화당 ~1 명령)에서는 문제 없음. 대량 버스트가 현실화되면 워커 + 큐로 재설계 — 사용자가 "필요 시 변경" 지점으로 명시.
+
+**Note ([ADR-014](#adr-014))**: Client API(.exe) 방식에선 BWAPI `onFrame` 콜백이 없다. 대신 봇이 메인 루프에서 `BWAPIClient.update()`를 호출하면 그게 한 프레임을 진행시키고 반환한다 → 매 `update()` 직후가 본 ADR의 `onFrame` 폴링 지점에 대응한다. "비차단 소켓을 프레임마다 폴링, 라인 버퍼 누적, 단일 스레드" 결정은 그대로 유효하다. 봇은 단일 스레드 메인 루프 안에서 BWAPI `update()` + Python 소켓 polling을 함께 돈다.
 
 
 ## ADR-006: `produce_marine`은 가장 한가한 idle barracks 선택
@@ -179,3 +183,21 @@ wine injectory_x86.exe --launch StarCraft.exe --inject bwapi-data/BWAPI.dll WMod
 **Rationale**: A2의 본질적 가치는 "Wine에서 BWAPI 주입 자체가 동작하는가"의 격리 검증이고, 이는 봇 없이도 달성된다. 빌드된 스톡 봇 확보는 불확실한 우회로다. 인젝션(A2)과 자체 코드 로딩(A3)을 분리해 두면 A3 실패 시 원인을 좁힐 수 있다.
 
 **Consequences**: A2 통과 조건이 "스톡 봇이 자기 할 일을 한다"에서 "BWAPI가 주입된 채 크래시 없이 실행된다"로 바뀐다. AGENTS.md A2 항목 문구도 이에 맞춘다.
+
+
+## ADR-014: 봇은 BWAPI Client API(.exe), MinGW 크로스컴파일 (ADR-003 대체)
+
+**Status**: Accepted
+
+**Context**: A3에서 자체 봇을 MinGW로 빌드하려다, BWAPI의 C++ `AIModule`(DLL) 인터페이스가 **MSVC 전용**임을 확인했다. C++ 네임 맹글링이 컴파일러마다 달라, MinGW로 빌드한 DLL은 주입된 BWAPI.dll과 심볼이 안 맞는다 (BWAPI 위키·포럼이 명시: `cl.exe`/`link.exe`로만 링크 가능). 또한 BWAPI 4.4.0은 prebuilt `.lib`을 동봉하지 않는다 (VS2017 호환성 문제로 제거). 이로써 ADR-003의 두 전제("헤더+import lib는 MinGW로 잘 링크된다", "봇은 DLL")가 모두 무너졌다.
+
+**Decision**: 봇을 `AIModule` DLL이 아니라 **BWAPI Client API 기반 독립 실행파일(.exe)**로 만든다. 봇은 별도 프로세스로 실행돼 주입된 BWAPI.dll과 **shared memory + named pipe**로 통신한다. Client 라이브러리는 prebuilt가 없으므로 BWAPI 4.4.0 소스를 `bot/third_party/bwapi/`에 vendoring해 봇과 함께 MinGW로 빌드한다. 빌드는 Docker 컨테이너(Debian + g++-mingw-w64-i686 + cmake)에서 수행하고 호스트엔 MinGW를 설치하지 않는다.
+
+**Rationale**: Client API는 봇 측 코드가 전부 봇 바이너리에 컴파일돼 들어가므로(주입 DLL과 C++ ABI를 공유하지 않음) MinGW로 빌드 가능하다 — Linux/MinGW 빌드 선례가 있다. 봇 로직 API(`Broodwar->sendText` 등)는 AIModule 방식과 동일해 produce_marine 등 상위 설계가 거의 보존된다. 컨테이너 빌드로 ADR-003의 "Wine을 컴파일에 안 끌어들인다, 네이티브 편집·빌드 루프" 의도를 유지하면서 호스트 오염도 없앤다. spike에서 ExampleAIClient.exe(PE32)가 MinGW로 끝까지 빌드됨을 검증했다.
+
+**Consequences**:
+-   봇 형태가 DLL→.exe로 바뀐다. `bwapi-data/AI/`에 두지 않고, bwapi.ini의 `ai =`는 비운 채(ADR-013 상태 유지) injectory로 게임만 주입한 뒤 봇 .exe를 Wine으로 별도 실행한다.
+-   봇과 게임이 **같은 Wine prefix**에서 돌아야 shared memory(`Global\bwapi_shared_memory_*`)를 공유한다 (A3에서 검증 대상).
+-   vendored 소스에 MinGW/GCC 호환 패치가 필요하다 (CommandTemp.h, SharedMemory.h — 별도 커밋). `<Windows.h>`→`<windows.h>` shim, `svnrev.h` stub도 함께 둔다.
+-   onFrame 콜백 대신 봇이 메인 루프에서 `BWAPIClient.update()`로 프레임 동기화한다 ([ADR-005](#adr-005) Note 참조).
+-   ADR-003을 대체한다. ADR-004(봇=TCP 클라이언트)의 "봇=클라이언트" 결론은 유지되나 근거의 AIModule 폐기 서술은 [ADR-004](#adr-004) Note로 갱신한다.
