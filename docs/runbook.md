@@ -70,15 +70,36 @@ mise run bot-run
 -   메뉴 상태에선 콘솔이 `waiting to enter match`만 반복 (정상 — `isInGame()`이 false).
 -   체크포인트 A3 통과 조건: **봇 .exe가 shared memory로 연결되고 채팅에 메시지가 뜬다.**
 
+### A4 — 봇 비차단 TCP 클라이언트 (라인 echo)
+
+봇이 명령 서버(`127.0.0.1:5000`)에 비차단 TCP로 붙어, 들어온 라인을 콘솔에 echo ([ADR-004](decisions.md#adr-004)/[ADR-005](decisions.md#adr-005)). JSON 파싱·`train()` 호출은 아직 없다 (A5). 모듈: `bot/src/voice_client.{h,cpp}` (`VoiceClient`).
+
+```bash
+# 터미널 1 — 명령 서버 대기
+nc -l -k 5000
+
+# 터미널 2 — 게임 + BWAPI 주입
+mise run bw-bwapi   # → single-player 테란 매치 진입
+
+# 터미널 3 — 봇 .exe
+mise run bot-run
+```
+
+-   봇 콘솔: 매치 루프 진입 후 `voice: connected to 127.0.0.1:5000`.
+-   `nc`에 라인 입력 → 봇 콘솔 `voice recv: <라인>`. 멀티라인·부분 라인은 영구 버퍼가 `\n`로 분할.
+-   `nc` 죽이고 재실행 → `voice: server closed` 후 재연결.
+-   봇이 매치 진입 시 `Broodwar->enableFlag(Flag::UserInput)`를 켜서 **테스트용**으로 사람도 유닛 조종 가능 (기본은 봇만 명령 가능 → A4 봇은 train 호출이 없어 유닛이 안 움직이는 게 정상).
+-   체크포인트 A4 통과 조건: **봇이 서버에 connect 하고, 입력 라인을 콘솔에 echo 하며, 프레임 루프가 끊김 없이 돈다.**
+
 ### 테스트 맵 — 별도 제작 없음
 
 -   맵을 만들지 않는다 ([ADR-007](decisions.md#adr-007)). 스톡 melee 맵을 single-player + 테란으로 로드하면 봇 슬롯이 Command Center 1기 + SCV 4기 + 시작 미네랄(50) + 서플라이 여유를 이미 갖는다.
 -   `produce_scv`는 이 기본 Command Center에서 SCV를 뽑으므로 사전 배치·소유자 설정이 필요 없다.
 
 
-## MVP-A 실행 절차 (반복)
+## MVP-A 실행 절차 (반복) — A5
 
-체크포인트 A1–A4가 통과한 뒤의 일상 실행 흐름.
+A4(TCP echo)까지 통과한 뒤, 여기서 `on_line` 콜백에 JSON 파싱 + `produce_scv` 디스패치가 들어가면 A5 = MVP-A 완료. 아래는 A5 구현 후의 일상 실행 흐름.
 
 1.  터미널에서 `nc -l -k 5000` 실행 (서버 대기).
 2.  게임 + BWAPI 주입: `mise run bw-bwapi`.

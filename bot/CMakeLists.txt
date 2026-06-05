@@ -38,7 +38,7 @@ add_library(bwapiclient STATIC ${BWAPI_CLIENT_SRC})
 # vendored 소스는 GCC 경고가 많음 → 빌드 노이즈 억제 (우리 코드엔 적용 안 함).
 target_compile_options(bwapiclient PRIVATE -w)
 
-add_executable(voice-craft-bot src/main.cpp)
+add_executable(voice-craft-bot src/main.cpp src/voice_client.cpp)
 target_link_libraries(voice-craft-bot PRIVATE
     bwapiclient
     ws2_32
