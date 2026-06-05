@@ -10,6 +10,10 @@ WINEPREFIX = "{{env.HOME}}/.wine-bw"
 WINEARCH = "win64"
 # BW 패키지 압축 해제 위치.
 BW_DIR = "{{env.HOME}}/sc-bw-1161"
+# 봇 소스 디렉터리 (Docker 빌드 mount 대상).
+BOT_DIR = "{{config_root}}/bot"
+# 봇 빌드용 Docker 이미지 태그.
+BOT_IMAGE = "voice-craft-bot-build"
 # Wine virtual desktop 크기 (i3 윈도우 모드용).
 # BW 1.16.1은 내부 렌더가 640x480 고정이라 창을 키워도 게임은 안 커지고 검은 여백만
 # 늘어난다 → 창을 게임 크기에 맞춘다.
@@ -95,4 +99,45 @@ cd "$BW_DIR"
 # BWAPI 오버레이/로그는 매치 진입 후에 나타나므로 single-player 게임까지 들어가 확인.
 wine injectory_x86.exe --verbose --launch StarCraft.exe \
   --inject bwapi-data/BWAPI.dll WMode.dll
+'''
+
+# --- A3: BWAPI Client API 봇 .exe (MinGW Docker 빌드, ADR-014) ---
+# 봇은 AIModule DLL이 아니라 독립 .exe. 게임(bw-bwapi로 주입)과 같은 Wine
+# prefix에서 실행돼 shared memory로 BWAPI에 붙는다. 빌드는 컨테이너 안에서만,
+# 호스트엔 MinGW 미설치.
+
+[tasks.bot-image]
+description = "봇 빌드용 Docker 이미지 빌드 (Debian + MinGW, 멱등)"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+docker build -t "$BOT_IMAGE" "$BOT_DIR"
+'''
+
+[tasks.bot-build]
+description = "봇 .exe 를 컨테이너에서 크로스컴파일 → bot/build/voice-craft-bot.exe"
+depends = ["bot-image"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+# --user 로 호스트 UID 매핑 (산출물이 root 소유로 안 생기게).
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -v "$BOT_DIR:/work" -w /work \
+  "$BOT_IMAGE" sh -c '
+    cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+    cmake --build build -j
+  '
+echo "산출물:"
+ls -la "$BOT_DIR/build/voice-craft-bot.exe"
+'''
+
+[tasks.bot-run]
+description = "봇 .exe 실행 (게임이 매치 진입한 뒤 별도 터미널에서 — A3 검증)"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+# 게임과 동일 WINEPREFIX([env])에서 실행해야 shared memory를 공유한다.
+# 게임을 먼저 mise run bw-bwapi 로 띄우고 매치에 진입한 상태여야 한다.
+wine "$BOT_DIR/build/voice-craft-bot.exe"
 '''
