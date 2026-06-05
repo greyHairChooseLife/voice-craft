@@ -70,39 +70,30 @@ mise run bot-run
 -   메뉴 상태에선 콘솔이 `waiting to enter match`만 반복 (정상 — `isInGame()`이 false).
 -   체크포인트 A3 통과 조건: **봇 .exe가 shared memory로 연결되고 채팅에 메시지가 뜬다.**
 
-### 테스트 맵 (ScmDraft 2)
+### 테스트 맵 — 별도 제작 없음
 
--   ScmDraft 2를 Wine 또는 Windows 머신에서 실행.
--   새 맵 생성:
-    -   Tileset 임의, 크기 64x64면 충분.
-    -   Player 1 = Human, Race = Terran, Start Location 배치.
-    -   Player 1 소유 Terran Barracks 1기 사전 배치 ("Place Unit" 도구).
-    -   "Properties → Forces / Players → Player 1 Starting Resources = 1000 minerals".
-    -   서플라이 여유를 위해 Player 1 소유 Supply Depot 2기를 추가하거나, 트리거 없이 시작 미네랄·서플라이만 조정.
-    -   **트리거 비워둘 것.**
--   `.scx`로 저장, BW 맵 디렉터리에 복사.
--   BW에서 single-player melee로 로드, "Use Map Settings" 모드로 확인 → **배럭이 파란색(Player 1) 소유인지 시각적으로 확인.**
--   체크포인트 A4 통과 조건: **맵이 로드되고 Player 1 소유 배럭이 보인다.**
+-   맵을 만들지 않는다 ([ADR-007](decisions.md#adr-007)). 스톡 melee 맵을 single-player + 테란으로 로드하면 봇 슬롯이 Command Center 1기 + SCV 4기 + 시작 미네랄(50) + 서플라이 여유를 이미 갖는다.
+-   `produce_scv`는 이 기본 Command Center에서 SCV를 뽑으므로 사전 배치·소유자 설정이 필요 없다.
 
 
 ## MVP-A 실행 절차 (반복)
 
-체크포인트 A1–A4가 모두 통과한 뒤의 일상 실행 흐름.
+체크포인트 A1–A4가 통과한 뒤의 일상 실행 흐름.
 
 1.  터미널에서 `nc -l -k 5000` 실행 (서버 대기).
-2.  `wine Chaoslauncher.exe` 실행, "BWAPI Injector" 활성, 봇 DLL = `voice-craft-bot.dll`.
-3.  BW 기동 → single-player → 테스트 맵 로드 → 게임 시작.
-4.  봇 로그(게임 채팅 또는 stdout)에서 "connected to 127.0.0.1:5000" 확인.
+2.  게임 + BWAPI 주입: `mise run bw-bwapi`.
+3.  BW에서 single-player → 스톡 melee 맵 → **테란**으로 게임 시작.
+4.  봇 .exe 실행: `mise run bot-run`. 봇 로그에서 "connected to 127.0.0.1:5000" 확인.
 5.  `nc` 터미널에 한 줄 입력:
 
     ```
-    {"cmd":"produce_marine"}
+    {"cmd":"produce_scv"}
     ```
 
-6.  게임 화면에서 마린 1기가 배럭에서 생산되는지 확인.
+6.  게임 화면에서 Command Center가 SCV 1기를 생산하는지 확인 (훈련 progress bar / 서플라이 카운트 증가).
 7.  반복: 같은 줄을 다시 입력 → 또 한 기 생산.
 
-**체크포인트 A6 통과 조건 = MVP-A 완료**: 위 6단계가 처음 시도에서 마린을 띄우고, 7단계가 두 번째 마린을 띄운다. BWAPI 에러 로그 없음.
+**체크포인트 A5 통과 조건 = MVP-A 완료**: 위 6단계가 처음 시도에서 SCV를 띄우고, 7단계가 두 번째 SCV를 띄운다. BWAPI 에러 로그 없음.
 
 
 ## 디버깅 빠른 확인
@@ -110,9 +101,9 @@ mise run bot-run
 증상별 첫 번째 의심처:
 
 -   **봇 로그에 "connected" 메시지가 안 뜬다** → `nc -l -k 5000`이 정말 listen 중인지 (`ss -tlnp | grep 5000`), Wine 안의 봇이 host의 localhost에 닿는지.
--   **`{"cmd":"produce_marine"}` 입력 후 아무 반응이 없다** → 봇 로그에 라인이 도착했는지 (A5 echo 동작이 살아있는지), JSON 파싱 에러가 났는지, `Broodwar->self()->getUnits()`가 비었는지.
--   **`getUnits()`가 비어 있다** → 맵의 배럭 소유자가 Player 1인지 ScmDraft에서 재확인 (ADR-007의 1순위 실패 모드).
--   **마린이 안 나오고 `getLastError()`가 `Insufficient_Minerals`** → 맵 미네랄 설정 / 매치가 정말 그 맵을 로드했는지.
+-   **`{"cmd":"produce_scv"}` 입력 후 아무 반응이 없다** → 봇 로그에 라인이 도착했는지 (A4 echo 동작이 살아있는지), JSON 파싱 에러가 났는지, `Broodwar->self()->getUnits()`가 비었는지.
+-   **`getUnits()`가 비어 있다** → 매치를 **테란**으로 시작했는지, single-player melee로 실제 게임에 진입했는지 (메뉴 상태면 빈다).
+-   **SCV가 안 나오고 `getLastError()`가 `Insufficient_Minerals`** → 시작 미네랄(50)을 이미 다른 데 썼는지 / 매치가 melee 시작 상태인지.
 -   **두 번째 매치부터 봇이 명령에 반응하지 않는다** → 봇의 재연결 루프가 누락 (ADR-004).
 
 

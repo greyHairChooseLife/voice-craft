@@ -5,12 +5,12 @@
 
 ## MVP
 
-단일 명령 "마린 생산" → 사전 배치된 배럭에서 마린 1기 생산.
+단일 명령 "SCV 생산" → 스톡 melee 시작 Command Center에서 SCV 1기 생산.
 
 두 단계로 나눠 진행한다. 자세한 정의는 [docs/architecture.md](docs/architecture.md), 실행 절차는 [docs/runbook.md](docs/runbook.md).
 
--   **MVP-A**: C++ 봇 + `nc`로 JSON 수동 주입 → 마린 등장.
--   **MVP-B**: 전체 음성 경로 (PTT → STT → NLU → JSON → 봇) → 마린 등장.
+-   **MVP-A**: C++ 봇 + `nc`로 JSON 수동 주입 → SCV 등장.
+-   **MVP-B**: 전체 음성 경로 (PTT → STT → NLU → JSON → 봇) → SCV 등장.
 
 
 ## 문서 구조
@@ -46,9 +46,8 @@
 -   [x] A1. Wine + BW 실행 확인 (메인 메뉴 도달) - `chore_wine-and-BW`
 -   [x] A2. injectory로 BWAPI 인젝션 검증 (봇 없이 주입·실행, ADR-013) - `chore_wine-and-BW`
 -   [x] A3. MinGW(Docker) + BWAPI Client API 봇 .exe (게임 채팅에 "hello" 출력, ADR-014) - `chore_bot-boilerplate`
--   [ ] A4. 테스트 맵 (ScmDraft 2, 배럭 소유자 확인)
--   [ ] A5. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코)
--   [ ] A6. JSON 디스패치 → 마린 생산 (**MVP-A 완료**)
+-   [ ] A4. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코)
+-   [ ] A5. JSON 디스패치 → SCV 생산 (스톡 melee CC에서 train, ADR-006/007) (**MVP-A 완료**)
 
 ### MVP-B — 음성 경로
 

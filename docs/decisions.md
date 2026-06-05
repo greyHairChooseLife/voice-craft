@@ -73,30 +73,34 @@
 **Note ([ADR-014](#adr-014))**: Client API(.exe) 방식에선 BWAPI `onFrame` 콜백이 없다. 대신 봇이 메인 루프에서 `BWAPIClient.update()`를 호출하면 그게 한 프레임을 진행시키고 반환한다 → 매 `update()` 직후가 본 ADR의 `onFrame` 폴링 지점에 대응한다. "비차단 소켓을 프레임마다 폴링, 라인 버퍼 누적, 단일 스레드" 결정은 그대로 유효하다. 봇은 단일 스레드 메인 루프 안에서 BWAPI `update()` + Python 소켓 polling을 함께 돈다.
 
 
-## ADR-006: `produce_marine`은 가장 한가한 idle barracks 선택
+## ADR-006: `produce_scv`는 가장 한가한 idle Command Center 선택
 
 **Status**: Accepted
 
-**Context**: 명령은 유닛 *타입* 기반이며 특정 unit ID를 지정하지 않는다. 봇이 대상 배럭을 골라야 한다.
+**Context**: 명령은 유닛 *타입* 기반이며 특정 unit ID를 지정하지 않는다. 봇이 대상 생산 건물을 골라야 한다.
 
-**Decision**: `Broodwar->self()->getUnits()`에서 완성된 Terran Barracks만 필터, `getTrainingQueue().size()`가 가장 작은 것을 선택, `< 5`이면 `train(UnitTypes::Terran_Marine)`. 매 호출 후 `Broodwar->getLastError()`를 로깅.
+**Decision**: `Broodwar->self()->getUnits()`에서 완성된 Terran Command Center만 필터, `getTrainingQueue().size()`가 가장 작은 것을 선택, `< 5`이면 `train(UnitTypes::Terran_SCV)`. 매 호출 후 `Broodwar->getLastError()`를 로깅.
 
-**Rationale**: "가장 한가한 idle"은 MVP 규모(배럭 1기)에서는 no-op tiebreaker지만 배럭 수가 늘어나도 코드 변경 없이 합리적으로 작동한다. `train()`은 미네랄·서플라이·큐 부족 시 조용히 실패하므로 `getLastError()` 로깅이 없으면 "왜 마린이 안 나오지?" 디버깅이 어려워진다.
+**Rationale**: MVP-A의 목표는 "JSON 명령 한 줄로 BWAPI `train()` 호출을 구동할 수 있는가"의 검증뿐이다. `train(Marine)`과 `train(SCV)`는 동일한 단일 호출이라 봇 로직 복잡도는 같다. SCV를 고르면 생산 건물이 melee 시작 상태의 Command Center라 별도 테스트 맵·미네랄·배럭 사전 배치가 전부 불필요해진다([ADR-007](#adr-007)) — 검증 비용이 가장 낮다. "가장 한가한 idle"은 MVP 규모(CC 1기)에서는 no-op tiebreaker지만 건물 수가 늘어나도 코드 변경 없이 작동한다. `train()`은 미네랄·서플라이·큐 부족 시 조용히 실패하므로 `getLastError()` 로깅이 없으면 "왜 SCV가 안 나오지?" 디버깅이 어려워진다.
+
+**Note**: 원래 명령은 `produce_marine`(생산 건물 = Terran Barracks)이었다. MVP-A를 "명령 경로 검증"으로 좁히면서, 별도 맵 제작과 배럭/서플라이/미네랄 셋업을 모두 없애기 위해 melee 기본 시작 유닛인 Command Center에서 SCV를 뽑는 쪽으로 바꿨다. Marine 데모는 실제 맵이 생기는 MVP-B에서 복귀할 수 있다.
 
 **Consequences**: 큐가 5로 가득 찬 상태에서 명령을 반복하면 추가 명령은 조용히 드롭된다 (이건 의도된 동작). 로그 라인이 화면에 보여야 사용자가 이유를 안다.
 
 
-## ADR-007: 테스트 맵은 ScmDraft 2로 직접 제작, 트리거 없음
+## ADR-007: 테스트 맵 없음 — 스톡 melee 시작 상태를 harness로 사용
 
 **Status**: Accepted
 
-**Context**: MVP-A 검증을 위해 통제된 시작 상태가 필요. 옵션은 자체 제작 / 기존 sandbox 맵 차용 / 매번 수동 셋업.
+**Context**: MVP-A 검증을 위해 통제된 시작 상태가 필요. 옵션은 자체 제작(ScmDraft) / 기존 sandbox 맵 차용 / 스톡 melee 기본 시작 상태 사용.
 
-**Decision**: ScmDraft 2로 직접 제작. Player 1 테란 시작 위치, Player 1 소유 Terran Barracks 1기 사전 배치, 시작 미네랄 1000+, 서플라이 여유, 트리거·메시지·승패 조건 없음. Wine에서 ScmDraft가 잘 안 되면 사용자의 Windows 머신에서 제작 후 `.scx` 복사.
+**Decision**: 별도 맵을 만들지 않는다. 스톡 melee 맵을 테란으로 single-player 로드하면 봇 슬롯이 Command Center 1기 + SCV 4기 + 시작 미네랄(50) + 서플라이 여유를 이미 갖는다. `produce_scv`([ADR-006](#adr-006))는 이 기본 Command Center에서 SCV를 뽑으므로 사전 배치·소유자 설정·미네랄 조정이 전부 불필요하다.
 
-**Rationale**: 맵은 모든 MVP-A 반복의 harness — 일회성 제작 비용이 매 실행마다의 수동 셋업 비용을 압도. 트리거 없는 minimal 맵이 실패 원인을 봇 코드로 격리시켜준다.
+**Rationale**: MVP-A는 "명령 한 줄로 `train()` 호출이 동작하는가"만 검증한다. SCV 생산으로 바꾸면 melee 기본 상태가 그대로 harness가 되어 ScmDraft 제작 비용(특히 Wine에서의 마찰)과 "배럭 소유자가 Player 1인가" 확인 단계가 통째로 사라진다. 통제된 시작 상태가 필요하다는 원래 요구는 melee 기본값이 충족한다.
 
-**Consequences**: **배럭 소유자가 봇의 player slot(Player 1)과 일치하지 않으면** `getUnits()`가 비고 모든 명령이 조용히 실패. 첫 실행 전 BW의 "Use Map Settings" 모드에서 시각적으로 소유자를 확인할 것.
+**Consequences**: SCV 생산은 새 유닛이 기존 4기 SCV 사이에 등장해 시각적 확인이 마린보다 약하다 → CC 훈련 progress bar / 서플라이 카운트 증가 + `train()` 후 `getLastError()` 로그로 확인한다. 실제 통제 맵이 필요해지는 시점(MVP-B 등)에 ScmDraft 제작을 다시 도입한다.
+
+**Note**: 원래 결정은 "ScmDraft 2로 Terran Barracks 사전 배치 맵 직접 제작"이었다. MVP-A를 명령 경로 검증으로 좁히고 생산 유닛을 SCV로 바꾸면서 맵 제작 자체를 제거했다.
 
 
 ## ADR-008: JSON 파싱은 nlohmann/json (single-header, vendoring)

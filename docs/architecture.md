@@ -17,9 +17,9 @@
                                        ↕ shared memory
                                    [StarCraft.exe + 주입된 BWAPI.dll]
                                        ↓
-                                   [BWAPI: barracks.train(Marine)]
+                                   [BWAPI: commandcenter.train(SCV)]
                                        ↓
-                                   [게임 화면에 마린 등장]
+                                   [게임 화면에 SCV 등장]
 ```
 
 세 개 프로세스: ① StarCraft(주입된 BWAPI.dll = 서버), ② C++ 봇 .exe (BWAPI Client + Python TCP 클라이언트), ③ Python 음성 서비스. 봇은 BWAPI와는 shared memory로, Python과는 TCP로 통신한다 ([ADR-014](decisions.md#adr-014)).
@@ -44,7 +44,7 @@
 
 ### 명령 실행 시맨틱스
 
-`{"cmd":"produce_marine"}` → `Broodwar->self()->getUnits()`에서 완성된 Terran Barracks 중 `getTrainingQueue().size()`가 가장 작은 것을 선택, `< 5`이면 `train(UnitTypes::Terran_Marine)` 호출. 매 호출 후 `Broodwar->getLastError()` 로깅 ([ADR-006](decisions.md#adr-006)).
+`{"cmd":"produce_scv"}` → `Broodwar->self()->getUnits()`에서 완성된 Terran Command Center 중 `getTrainingQueue().size()`가 가장 작은 것을 선택, `< 5`이면 `train(UnitTypes::Terran_SCV)` 호출. 매 호출 후 `Broodwar->getLastError()` 로깅 ([ADR-006](decisions.md#adr-006)).
 
 
 ## 음성 측 (Python)
@@ -61,7 +61,7 @@ MVP-B에서 본격적으로 정의. 현재 확정된 항목:
 ## IPC
 
 -   **전송**: TCP, `localhost:5000`.
--   **인코딩**: JSON lines (`\n` delimited). 예: `{"cmd":"produce_marine"}\n`.
+-   **인코딩**: JSON lines (`\n` delimited). 예: `{"cmd":"produce_scv"}\n`.
 -   **역할**:
     -   Python = **서버**, 여러 매치 동안 살아남음.
     -   C++ 봇 = **클라이언트**, 매치 시작 시마다 새로 연결.
@@ -76,9 +76,8 @@ Python 서비스가 존재하기 전에는 `nc -l -k 5000`이 서버 역할을 �
 
 ## 테스트 맵
 
--   ScmDraft 2로 직접 제작 ([ADR-007](decisions.md#adr-007)).
--   내용: Player 1 테란 시작 위치, Player 1 소유 Terran Barracks 1기 사전 배치, 시작 미네랄 1000+, 서플라이 여유, 트리거 없음.
--   배치되는 배럭의 **소유자가 봇이 점유하는 슬롯(Player 1)**과 일치해야 한다. 불일치 시 `getUnits()` 결과가 비어 `produce_marine`이 조용히 실패한다.
+-   **별도 맵 제작 없음.** 스톡 melee 맵의 테란 시작 상태(Command Center 1기 + SCV 4기 + 시작 미네랄 + 서플라이 여유)를 그대로 harness로 쓴다 ([ADR-007](decisions.md#adr-007)).
+-   `produce_scv`의 생산 건물은 melee 시작 시 봇 슬롯이 이미 소유한 Command Center다. 사전 배치·소유자 설정이 필요 없어 "배럭 소유자 불일치로 `getUnits()`가 빈다"는 실패 모드가 사라진다.
 
 
 ## 저장소 구조
