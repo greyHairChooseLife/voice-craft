@@ -46,8 +46,18 @@
 -   [x] A1. Wine + BW 실행 확인 (메인 메뉴 도달) - `chore_wine-and-BW`
 -   [x] A2. injectory로 BWAPI 인젝션 검증 (봇 없이 주입·실행, ADR-013) - `chore_wine-and-BW`
 -   [x] A3. MinGW(Docker) + BWAPI Client API 봇 .exe (게임 채팅에 "hello" 출력, ADR-014) - `chore_bot-boilerplate`
--   [x] A4. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코)
--   [ ] A5. JSON 디스패치 → SCV 생산 (스톡 melee CC에서 train, ADR-006/007) (**MVP-A 완료**)
+-   [x] A4. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코) - `feat_non-block-tcp-client-reading-receive-buffer`
+-   [x] A5. JSON 디스패치 → SCV 생산 (스톡 melee CC에서 train, ADR-006/007/008) - `feat_json-dispatch` (**MVP-A 완료**)
+
+#### clone 후 MVP-A 검증
+
+clone 직후 MVP-A를 처음 돌려보는 흐름. 상세 명령·통과 조건·디버깅은 [runbook](docs/runbook.md)에 있다 (여긴 포인터만).
+
+1.  **1회성 환경 구축**: runbook [사전 준비](docs/runbook.md#사전-준비-1회성)의 A1~A4 — BW 다운로드, Wine/시스템 셋업, 봇 .exe 빌드까지.
+2.  **반복 실행**: runbook [MVP-A 실행 절차 — A5](docs/runbook.md#mvp-a-실행-절차-반복--a5).
+    -   `nc -l -k 5000` (명령 서버 대기) → `mise run bw-bwapi` (게임+주입, 테란 melee 진입) → `mise run bot-run` (봇).
+    -   `nc`에 `{"cmd":"produce_scv"}` 입력 → CC가 SCV 1기 생산.
+-   MVP-A엔 음성·미디어 캡처가 없다 — JSON은 `nc` stdin으로 수동 주입. 음성 경로는 MVP-B.
 
 ### MVP-B — 음성 경로
 
