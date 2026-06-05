@@ -1,6 +1,8 @@
-# A3 — BWAPI Client API 봇 .exe (채팅 "hello")
+# A3 — BWAPI Client API 봇 .exe (채팅 "hello") — 완료
 
 worktree `chore_bot-boilerplate`. A1·A2(환경 셋업)에 이어 실제 봇 코드가 들어온다.
+
+**완료 (2026-06-06)**: 봇 .exe가 같은 Wine prefix에서 shared memory로 BWAPI에 연결, 매치 진입 시 채팅에 hello 출력 확인. 2b(shared memory under Wine)까지 실증. 매치 재진입 시 재연결도 정상.
 
 원래 계획은 C++ AIModule(DLL) 방식이었으나, MinGW로 링크 불가함을 확인해 **BWAPI Client API(.exe)**로 피벗했다 ([ADR-014](../../decisions.md#adr-014)). 이 문서는 피벗 후 남은 작업의 진행 기록이다.
 

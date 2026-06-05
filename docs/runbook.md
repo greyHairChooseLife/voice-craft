@@ -31,34 +31,44 @@ mise run bw-run
 -   체크포인트 A1 통과 조건: **메인 메뉴 화면이 보인다.**
 -   안 뜨면 → ADR-001대로 첫 의심처는 Wine 환경 (win64/wow64 prefix인지, multilib wine인지).
 
-### Chaoslauncher + BWAPI
+### A2 — injectory로 BWAPI 주입 (봇 없음)
 
--   BWAPI 4.x (Classic) 릴리스 zip 다운로드.
--   `bwapi-data/`를 BW 설치 디렉터리에 복사.
--   Chaoslauncher 압축 해제 후 Wine으로 실행: `wine Chaoslauncher.exe`.
--   설정에서 "BWAPI Injector" 플러그인 활성화.
--   기본으로 제공되는 `ExampleAIModule.dll`을 `bwapi-data/AI/`에 둔 채 Chaoslauncher로 BW 기동 → 임의 melee 맵에서 봇이 자동으로 움직이는지 확인.
--   체크포인트 A2 통과 조건: **스톡 봇이 자기 할 일을 하고 크래시가 없다.**
-
-### MinGW-w64 + CMake 툴체인
+패키지엔 Chaoslauncher가 없고 injectory CLI가 들어있다 ([ADR-012](decisions.md#adr-012)). bwapi.ini의 `ai =`를 비운 채 주입만 검증한다 ([ADR-013](decisions.md#adr-013)).
 
 ```bash
-sudo pacman -S mingw-w64-gcc cmake
+mise run bw-bwapi
 ```
 
--   `bot/cmake/mingw-w64-toolchain.cmake` 작성 (i686 타깃, `CMAKE_SYSTEM_NAME=Windows`).
--   `bot/CMakeLists.txt` 작성 (`-std=c++17`, BWAPI include + import lib 링크, 출력은 `.dll`).
--   첫 빌드는 "hello" 만 출력하는 최소 `AIModule` 서브클래스로:
+-   injectory가 `BWAPI.dll` + `WMode.dll`을 StarCraft.exe에 주입. `--verbose` 로그로 주입 확인.
+-   single-player 게임까지 진입 → BWAPI 오버레이/`bwapi-data/logs/` 정상, 크래시 없음.
+-   체크포인트 A2 통과 조건: **BWAPI가 주입된 채 크래시 없이 실행된다.**
+
+### A3 — BWAPI Client API 봇 .exe (Docker MinGW 빌드)
+
+봇은 AIModule DLL이 아니라 독립 `.exe` ([ADR-014](decisions.md#adr-014)). 빌드는 Docker 컨테이너에서, 호스트엔 MinGW를 깔지 않는다. 봇 소스 라이브러리(vendored BWAPI Client)는 `bot/third_party/bwapi/`에 있다.
+
+**빌드** (이미지 1회 빌드 후 재사용):
 
 ```bash
-cd bot
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-toolchain.cmake
-cmake --build build
-cp build/voice-craft-bot.dll "$HOME/.wine-bw/drive_c/<BW경로>/bwapi-data/AI/"
+mise run bot-build      # bot-image(이미지) 의존 → 컨테이너에서 cmake 빌드
+# 산출물: bot/build/voice-craft-bot.exe (PE32, i386)
 ```
 
--   Chaoslauncher 재기동 → 봇 선택을 `voice-craft-bot.dll`로 변경 → 게임 채팅에 "hello voice-craft" 출력 확인.
--   체크포인트 A3 통과 조건: **자체 DLL이 로딩되고 채팅에 메시지가 뜬다.**
+**실행** — 게임과 봇은 **같은 Wine prefix**(`~/.wine-bw`)에서 도는 별도 프로세스. shared memory로 연결된다 (bwapi.ini의 `shared_memory = ON` 필수).
+
+```bash
+# 터미널 1 — 게임 + BWAPI 주입
+mise run bw-bwapi
+#   → single-player 로 아무 맵이나 로드해 매치에 진입 (A3는 채팅 출력만 확인)
+
+# 터미널 2 — 봇 .exe (게임이 매치에 진입한 뒤)
+mise run bot-run
+```
+
+-   봇 콘솔: `connecting to BWAPI...` → `Connected` → `waiting to enter match` → 매치 진입 시 `in match: sent hello`.
+-   게임 채팅창에 `hello voice-craft ...` 표시.
+-   메뉴 상태에선 콘솔이 `waiting to enter match`만 반복 (정상 — `isInGame()`이 false).
+-   체크포인트 A3 통과 조건: **봇 .exe가 shared memory로 연결되고 채팅에 메시지가 뜬다.**
 
 ### 테스트 맵 (ScmDraft 2)
 
