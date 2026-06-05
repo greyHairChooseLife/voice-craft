@@ -31,7 +31,7 @@ namespace BWAPI
         }
 
         if(frames > 0)
-          buf[frames - 1].push_back(std::forward<Command>(command)); // Forward rvalue ref
+          buf[frames - 1].push_back(std::forward<BWAPIC::Command>(command)); // Forward rvalue ref
       };
 
       auto orderEvent = makeEvent(EventType::Order);
