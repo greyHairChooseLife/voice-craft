@@ -1,4 +1,4 @@
-# A5 — JSON 디스패치 → SCV 생산 (MVP-A 완료)
+# A5 — JSON 디스패치 → SCV 생산 (MVP-A 완료) — 완료
 
 worktree `feat_json-dispatch`. A4(비차단 TCP 라인 echo)에 이어, 봇이 들어온 라인을 JSON으로 파싱해 `produce_scv` 명령을 BWAPI `train()` 호출로 디스패치한다. 이 단계로 "JSON 한 줄 → BWAPI 생산 호출" 경로가 닫히고 **MVP-A가 완료**된다.
 
@@ -77,4 +77,14 @@ A5 명령은 `produce_scv` 하나뿐. 단일 명령에 별도 모듈/추상화�
 
 ## 결과 (완료 기록)
 
--   (완료 후 기입: 실제 구현 결정, 빌드 이슈, 통과 조건 검증 결과)
+-   nlohmann/json v3.11.3 single-header `bot/third_party/nlohmann/json.hpp` vendoring. `bot/CMakeLists.txt`에서 `target_include_directories(voice-craft-bot PRIVATE third_party)`로 봇 exe 에만 include path 추가 (노이즈 많은 `bwapiclient` 라이브러리엔 미적용). 헤더 include 는 `<nlohmann/json.hpp>` (include path 에 올린 vendored 라이브러리라 `<...>`가 관례 — BWAPI 헤더와 동일).
+-   디스패치는 main.cpp 안 free function `dispatch()` + `produce_scv()`로 구현, 별도 모듈 안 만듦 (단일 명령).
+-   **`produce_scv` 단순화**: plan/[ADR-006]의 "least-loaded idle CC + queue<5" 선택 로직을 버리고, 첫 Terran Command Center 를 찾아 바로 `train(SCV)`. MVP-A 는 스톡 melee 시작 상태(CC 1기)라 후보 선택이 no-op tiebreaker — CLAUDE.md Simplicity First 에 따라 제거. `getLastError()` 로깅은 유지.
+-   **in-game 가드 추가**: `voice.poll()`이 매치 진입 *전* 루프에서도 돌기 때문에, 매치 밖에서 들어온 `produce_scv`는 `Broodwar->isInGame()`로 막고 "ignored (not in game)" 로그. 게임 상태 없이 `Broodwar->self()` 호출 방지.
+-   에러 처리: `json::parse` try/catch → "bad JSON" 드롭, `cmd` 누락/비문자열 → "missing/invalid cmd" 드롭, 미지 값 → "unknown cmd" 드롭. 어느 경우도 봇 크래시 없음.
+-   통과 조건 1–6 전부 수동 검증 통과: connect / `produce_scv`→SCV 훈련 시작 + `train(SCV) -> None` 로그 / 잘못된 JSON 생존 / 미지 명령 생존 / cmd 누락 생존 / getLastError 노출.
+-   빌드 이슈 없음 (`mise run bot-build` 정상). clang IDE 진단의 `winsock2.h not found`는 무시 — 실제 컴파일은 MinGW Docker 컨테이너에서 수행.
+
+### 미결
+
+-   `enableFlag(UserInput)` 제거는 아직 안 함 — 테스트 편의로 남겨둠. 정리 시점 별도 판단.

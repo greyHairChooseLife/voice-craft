@@ -46,8 +46,8 @@
 -   [x] A1. Wine + BW 실행 확인 (메인 메뉴 도달) - `chore_wine-and-BW`
 -   [x] A2. injectory로 BWAPI 인젝션 검증 (봇 없이 주입·실행, ADR-013) - `chore_wine-and-BW`
 -   [x] A3. MinGW(Docker) + BWAPI Client API 봇 .exe (게임 채팅에 "hello" 출력, ADR-014) - `chore_bot-boilerplate`
--   [x] A4. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코)
--   [ ] A5. JSON 디스패치 → SCV 생산 (스톡 melee CC에서 train, ADR-006/007) (**MVP-A 완료**)
+-   [x] A4. 비차단 TCP 클라이언트 + 라인 버퍼 (nc 입력이 봇 화면에 에코) - `feat_non-block-tcp-client-reading-receive-buffer`
+-   [x] A5. JSON 디스패치 → SCV 생산 (스톡 melee CC에서 train, ADR-006/007/008) - `feat_json-dispatch` (**MVP-A 완료**)
 
 ### MVP-B — 음성 경로
 

@@ -39,6 +39,8 @@ add_library(bwapiclient STATIC ${BWAPI_CLIENT_SRC})
 target_compile_options(bwapiclient PRIVATE -w)
 
 add_executable(voice-craft-bot src/main.cpp src/voice_client.cpp)
+# ADR-008: nlohmann/json single-header (bot/third_party/nlohmann/json.hpp).
+target_include_directories(voice-craft-bot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 target_link_libraries(voice-craft-bot PRIVATE
     bwapiclient
     ws2_32
