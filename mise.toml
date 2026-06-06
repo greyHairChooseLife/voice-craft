@@ -159,7 +159,9 @@ run = '''
 set -euo pipefail
 cd "$VOICE_DIR"
 # 프로젝트 로컬 venv 에 editable 설치. B2 부터 pynput·sounddevice·numpy 동반.
-uv venv
+# voice 태스크의 depends 라 매번 돈다 → venv 가 있으면 재생성 프롬프트를
+# 피하려 uv venv 를 건너뛴다. install 은 멱등이라 새 의존성을 그대로 동기화.
+[ -d .venv ] || uv venv
 uv pip install -e .
 echo "voice venv: $VOICE_DIR/.venv"
 '''
