@@ -150,11 +150,12 @@ set -euo pipefail
 wine "$BOT_DIR/build/voice-craft-bot.exe"
 '''
 
-# --- 음성 서비스 (asyncio TCP :5000 + PTT 캡처, ADR-015~019) ---
+# --- 음성 서비스 (asyncio TCP :5000 + PTT 캡처 + STT, ADR-015~019) ---
 # Python 의존성은 uv + 프로젝트 로컬 venv(voice/.venv)로 격리한다. B2 부터
-# voice-setup 이 음성 경로 의존성을 설치한다 — 현재 pynput·sounddevice·numpy
-# (PTT 캡처). faster-whisper(STT)는 B3 에서 추가된다.
+# voice-setup 이 음성 경로 의존성을 설치한다 — pynput·sounddevice·numpy
+# (PTT 캡처) + faster-whisper (STT, B3).
 # sounddevice 는 PortAudio 시스템 패키지가 필요할 수 있다(Arch: portaudio).
+# faster-whisper 는 첫 실행 시 base.en 모델(~140MB)을 자동 다운로드·캐시한다.
 
 [tasks.voice-setup]
 description = "음성 서비스 의존성 설치 (uv + voice/.venv) — 1회성"
