@@ -144,10 +144,11 @@ set -euo pipefail
 wine "$BOT_DIR/build/voice-craft-bot.exe"
 '''
 
-# --- B1: 음성 서비스 asyncio TCP 서버 (:5000, nc 대체, ADR-019) ---
-# Python 의존성은 uv + 프로젝트 로컬 venv(voice/.venv)로 격리한다. B1 은
-# stdlib(asyncio)만 쓰므로 voice-setup 은 venv 생성만 한다 — 음성 경로
-# 의존성(pynput·sounddevice·numpy·faster-whisper)은 B2~B4 에서 추가된다.
+# --- 음성 서비스 (asyncio TCP :5000 + PTT 캡처, ADR-015~019) ---
+# Python 의존성은 uv + 프로젝트 로컬 venv(voice/.venv)로 격리한다. B2 부터
+# voice-setup 이 음성 경로 의존성을 설치한다 — 현재 pynput·sounddevice·numpy
+# (PTT 캡처). faster-whisper(STT)는 B3 에서 추가된다.
+# sounddevice 는 PortAudio 시스템 패키지가 필요할 수 있다(Arch: portaudio).
 
 [tasks.voice-setup]
 description = "음성 서비스 의존성 설치 (uv + voice/.venv) — 1회성"
@@ -155,14 +156,14 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$VOICE_DIR"
-# 프로젝트 로컬 venv 에 editable 설치. B1 은 의존성이 없어 패키지만 들어간다.
+# 프로젝트 로컬 venv 에 editable 설치. B2 부터 pynput·sounddevice·numpy 동반.
 uv venv
 uv pip install -e .
 echo "voice venv: $VOICE_DIR/.venv"
 '''
 
 [tasks.voice]
-description = "음성 서비스 기동 (asyncio TCP :5000). B1 은 stdin 으로 JSON 라인 입력 → 봇 전달"
+description = "음성 서비스 기동 (asyncio TCP :5000 + PTT 캡처). stdin JSON 입력 또는 F12 PTT"
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
