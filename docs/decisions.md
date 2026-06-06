@@ -216,7 +216,7 @@ wine injectory_x86.exe --launch StarCraft.exe --inject bwapi-data/BWAPI.dll WMod
 **Decision**: TCP 서버와 음성 파이프라인을 분리하되, **별도 프로세스가 아니라 한 프로세스 안의 두 스레드**로 둔다.
 
 -   **메인 스레드** = asyncio 이벤트 루프. `127.0.0.1:5000` TCP 서버를 돌리고, 봇 연결을 보유하며, 스레드 안전 큐에서 명령을 꺼내 봇 소켓에 쓴다. whisper 모델을 메모리에 보유(콜드 스타트 없음, [ADR-004](#adr-004) 근거 유지).
--   **워커 스레드** = PTT(F12) 리스너 + 마이크 캡처 + whisper 전사 + NLU. 인식된 JSON 라인을 `loop.call_soon_threadsafe(...)`로 메인 루프에 넘긴다.
+-   **워커 스레드** = PTT(`,`) 리스너 + 마이크 캡처 + whisper 전사 + NLU. 인식된 JSON 라인을 `loop.call_soon_threadsafe(...)`로 메인 루프에 넘긴다.
 -   스레드→asyncio 브리지는 `loop.call_soon_threadsafe`로 처리한다.
 
 **Rationale**: 경계를 넘나드는 것은 분당 몇 개의 작은 JSON 라인뿐이고 단방향이다. 큰 공유 상태가 경계를 넘지 않는다(whisper 모델은 워커, 봇 소켓은 메인에 각각 갇혀 있음). 스레드로 충분한 이유: faster-whisper의 무거운 추론은 CTranslate2 네이티브 코드에서 GIL을 풀어주므로 TCP 스레드가 응답성을 유지한다 — GIL 경합이 실질 문제가 아니다. 별도 프로세스로 가면 voice→(로컬 IPC)→tcp→(TCP)→봇이라 25바이트 문자열 하나를 옮기는 데 IPC를 하나 더 발명해야 한다. 프로세스의 유일한 실이익(크래시 격리)은 단일 운영자가 한 터미널을 보는 MVP 규모에서 그 배관 비용을 정당화하지 못한다.
@@ -224,22 +224,22 @@ wine injectory_x86.exe --launch StarCraft.exe --inject bwapi-data/BWAPI.dll WMod
 **Consequences**: whisper 크래시가 TCP 서버도 죽인다 — MVP에선 어차피 전체 재기동이 정상 대응이므로 허용. STT를 봇/TCP 재시작과 독립적으로 살리고 싶거나 STT를 별도 머신에서 돌리고 싶어지면 그때 2-프로세스로 분리한다 ([ADR-005](#adr-005)의 "필요 시 변경" 노트와 같은 성격의 재검토 지점).
 
 
-## ADR-016: PTT는 F12, 누른 동안만 녹음, X11 전역 핫키
+## ADR-016: PTT는 `,` 토글, X11 전역 핫키
 
-**Status**: Accepted
+**Status**: Accepted (Revised — 원안은 F12 누른 동안 녹음, B2 구현 중 토글로 변경)
 
-**Context**: 트리거는 푸시-투-토크([architecture.md](architecture.md) 확정). 운영자는 StarCraft(Wine 창)에 포커스를 둔 채 게임을 하므로 PTT 키는 터미널이 아니라 **시스템 전역**에서 잡혀야 한다. 녹음 구간 정의(누른 동안만 vs 고정 길이), 핫키 라이브러리, 게임과의 키 충돌을 정해야 한다.
+**Context**: 트리거는 푸시-투-토크([architecture.md](architecture.md) 확정). 운영자는 StarCraft(Wine 창)에 포커스를 둔 채 게임을 하므로 PTT 키는 터미널이 아니라 **시스템 전역**에서 잡혀야 한다. 녹음 구간 정의(누른 동안만 vs 토글), 핫키 라이브러리, 게임과의 키 충돌을 정해야 한다.
 
 **Decision**:
 
--   **누른 동안만 녹음**: F12 down → 마이크 스트림 시작, F12 up → 정지 후 전사. 고정 타임아웃·후행 무음 패딩 불필요.
--   **전역 핫키**: `pynput.keyboard.Listener`의 `on_press`/`on_release` 엣지. X11에서 동작(개발 환경은 Arch + i3 = X11). Wayland은 보안 모델상 전역 핫키가 막히므로 범위 밖.
--   **키 선택**: F12 — BW가 쓰지 않는 키라 누름이 게임 내 동작을 동시 유발하지 않는다.
+-   **토글 녹음**: `,` 한 번 → 마이크 스트림 시작, 다시 `,` → 정지 후 전사. 발화 동안 키를 계속 누르고 있지 않아도 된다.
+-   **전역 핫키**: `pynput.keyboard.Listener`의 `on_press`/`on_release` 엣지. `on_press` 가 토글, `on_release` 는 키 리피트 가드 해제용(한 물리적 누름 = 한 토글). X11에서 동작(개발 환경은 Arch + i3 = X11). Wayland은 보안 모델상 전역 핫키가 막히므로 범위 밖.
+-   **키 선택**: `,` — 운영자가 손쉽게 닿는 키.
 -   **캡처 포맷**: 마이크 = 시스템 기본 입력 장치, mono 16 kHz. 콜백 청크를 메모리에 모아 `numpy` `float32` 배열로 연결 → whisper에 직접 전달. 디스크·WAV 파일 없음.
 
-**Rationale**: 누른 동안만 녹음이 가장 자연스러운 PTT이고 발화 길이에 자동 적응한다. 전역 핫키는 게임에 포커스가 있어도 동작해야 하므로 필수. `pynput`은 root 불필요·pip 단독 설치라 `keyboard`(root 필요)·`evdev`(과도하게 저수준)보다 적합. `sounddevice`(PortAudio)는 16 kHz mono를 NumPy로 바로 주므로 `pyaudio`(raw bytes)보다 whisper 연결이 깔끔하다.
+**Rationale**: 누른 동안 녹음(원안)은 긴 발화에서 키를 계속 누르고 있어야 해 UX가 불편하다 → 토글이 손에 부담이 없다. 전역 핫키는 게임에 포커스가 있어도 동작해야 하므로 필수. `pynput`은 root 불필요·pip 단독 설치라 `keyboard`(root 필요)·`evdev`(과도하게 저수준)보다 적합. `sounddevice`(PortAudio)는 16 kHz mono를 NumPy로 바로 주므로 `pyaudio`(raw bytes)보다 whisper 연결이 깔끔하다.
 
-**Consequences**: 라이브러리 셋: `pynput` + `sounddevice` + `numpy` + `faster-whisper`. Wayland로 전환하면 전역 핫키 경로 재검토 필요. F12가 BW에서 비어있는지는 실제 게임에서 확인(운영자 검증).
+**Consequences**: 라이브러리 셋: `pynput` + `sounddevice` + `numpy` + `faster-whisper`. Wayland로 전환하면 전역 핫키 경로 재검토 필요. `,` 는 인쇄 가능한 키라 (1) 포커스된 텍스트 입력에 문자가 들어가고 (2) BW 단축키와 겹칠 수 있다 — 실제 게임에서 충돌 여부 확인(운영자 검증), 겹치면 키를 바꾼다. 토글은 정지 누름을 빠뜨리면 녹음이 계속되므로 `recording...`/`captured` 로그로 상태를 확인한다.
 
 
 ## ADR-017: STT는 faster-whisper `base.en`, CPU int8

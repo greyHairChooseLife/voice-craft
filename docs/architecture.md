@@ -52,7 +52,7 @@
 MVP-B의 `voice/` 서비스. 영어 전용 음성 인식(접근성 확장은 나중).
 
 -   **동시성**: 단일 프로세스 2-스레드 ([ADR-015](decisions.md#adr-015)). 메인 스레드 = asyncio TCP 서버(:5000) + whisper 모델 상주, 워커 스레드 = PTT + 마이크 + STT + NLU. 워커→메인은 `loop.call_soon_threadsafe`로 JSON 라인 전달.
--   **트리거 (PTT)**: F12, 누른 동안만 녹음, `pynput` X11 전역 핫키 ([ADR-016](decisions.md#adr-016)). F12 down → 마이크 시작, F12 up → 정지 후 전사.
+-   **트리거 (PTT)**: `,` 토글, `pynput` X11 전역 핫키 ([ADR-016](decisions.md#adr-016)). `,` 한 번 → 마이크 시작, 다시 `,` → 정지 후 전사.
 -   **마이크 캡처**: `sounddevice`(PortAudio), 시스템 기본 입력 장치, mono 16 kHz, 콜백 청크를 `numpy` `float32` 배열로 연결 → whisper에 직접. 디스크 없음 ([ADR-016](decisions.md#adr-016)).
 -   **STT**: faster-whisper `base.en`, `device="cpu"`, `compute_type="int8"`, `language="en"`. 시작 시 1회 로드(콜드 스타트 없음) ([ADR-017](decisions.md#adr-017)).
 -   **NLU**: `(동사 집합, 명사 집합, 명령)` 규칙 리스트 ([ADR-018](decisions.md#adr-018)). 정규화(소문자·구두점 제거·공백 압축) 후 부분일치. MVP-B는 production 동사(produce/make/build/train) **그리고** "scv"가 모두 있어야 `produce_scv` 발화. 무매칭 → 무명령 + 로그.

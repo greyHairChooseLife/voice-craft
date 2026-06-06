@@ -91,6 +91,8 @@ wine StarCraft.exe
 
 [tasks.bw-bwapi]
 description = "injectory로 BWAPI 주입해 BW 실행 → 크래시 없이 BWAPI 로드 확인 (A2 검증)"
+# 통합 테스트(게임/봇/음성)에선 run-game 으로 부른다.
+alias = "run-game"
 depends = ["bw-download"]
 run = '''
 #!/usr/bin/env bash
@@ -136,6 +138,10 @@ ls -la "$BOT_DIR/build/voice-craft-bot.exe"
 
 [tasks.bot-run]
 description = "봇 .exe 실행 (게임이 매치 진입한 뒤 별도 터미널에서 — A3 검증)"
+# 통합 테스트(게임/봇/음성)에선 run-bot 으로 부른다.
+alias = "run-bot"
+# build/ 는 git-ignore 라 새 worktree 엔 .exe 가 없다 → 실행 전 빌드 보장.
+depends = ["bot-build"]
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
@@ -144,10 +150,11 @@ set -euo pipefail
 wine "$BOT_DIR/build/voice-craft-bot.exe"
 '''
 
-# --- B1: 음성 서비스 asyncio TCP 서버 (:5000, nc 대체, ADR-019) ---
-# Python 의존성은 uv + 프로젝트 로컬 venv(voice/.venv)로 격리한다. B1 은
-# stdlib(asyncio)만 쓰므로 voice-setup 은 venv 생성만 한다 — 음성 경로
-# 의존성(pynput·sounddevice·numpy·faster-whisper)은 B2~B4 에서 추가된다.
+# --- 음성 서비스 (asyncio TCP :5000 + PTT 캡처, ADR-015~019) ---
+# Python 의존성은 uv + 프로젝트 로컬 venv(voice/.venv)로 격리한다. B2 부터
+# voice-setup 이 음성 경로 의존성을 설치한다 — 현재 pynput·sounddevice·numpy
+# (PTT 캡처). faster-whisper(STT)는 B3 에서 추가된다.
+# sounddevice 는 PortAudio 시스템 패키지가 필요할 수 있다(Arch: portaudio).
 
 [tasks.voice-setup]
 description = "음성 서비스 의존성 설치 (uv + voice/.venv) — 1회성"
@@ -155,14 +162,20 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$VOICE_DIR"
-# 프로젝트 로컬 venv 에 editable 설치. B1 은 의존성이 없어 패키지만 들어간다.
-uv venv
+# 프로젝트 로컬 venv 에 editable 설치. B2 부터 pynput·sounddevice·numpy 동반.
+# voice 태스크의 depends 라 매번 돈다 → venv 가 있으면 재생성 프롬프트를
+# 피하려 uv venv 를 건너뛴다. install 은 멱등이라 새 의존성을 그대로 동기화.
+[ -d .venv ] || uv venv
 uv pip install -e .
 echo "voice venv: $VOICE_DIR/.venv"
 '''
 
 [tasks.voice]
-description = "음성 서비스 기동 (asyncio TCP :5000). B1 은 stdin 으로 JSON 라인 입력 → 봇 전달"
+description = "음성 서비스 기동 (asyncio TCP :5000 + PTT 캡처). stdin JSON 입력 또는 `,` PTT"
+# 통합 테스트(게임/봇/음성)에선 run-voice 로 부른다.
+alias = "run-voice"
+# .venv 는 git-ignore 라 새 worktree 엔 의존성이 없다 → 기동 전 설치 보장.
+depends = ["voice-setup"]
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail

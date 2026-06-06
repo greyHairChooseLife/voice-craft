@@ -165,6 +165,33 @@ mise run bot-run
 -   봇 재연결 시 writer 교체 (`tcp: replacing bot ...`) — 두 번째 봇이 붙으면 옛 연결을 닫는다 (단일 봇 불변식).
 -   **B1 통과 조건**: 서버가 `:5000` 에 listen, 봇이 connect, stdin 한 줄이 봇까지 도달해 SCV 생산. `nc` 없이 동작.
 
+### B2 — PTT 캡처 (`,` 토글 + 마이크 → numpy 버퍼)
+
+음성 입력단만 검증한다 ([ADR-016](decisions.md#adr-016)). `,` 토글로 마이크를 녹음해 numpy 버퍼를 만들고 길이를 로그한다 — STT(B3)·봇 송신(B5) 전이라 버퍼는 봇에 가지 않는다. B1 의 stdin 펌프는 그대로 남아 동시 동작한다.
+
+```bash
+# 1회성 — 음성 의존성 설치 (pynput·sounddevice·numpy)
+mise run voice-setup
+
+# 음성 서버 + PTT 캡처
+mise run voice
+#   → "tcp: listening on 127.0.0.1:5000"
+#   → "ptt: ready (, to start/stop)"
+```
+
+-   **`,` 눌러 시작**, 잠깐 말하고, **다시 `,` 눌러 정지**:
+
+    ```
+    ptt: recording...
+    ptt: captured 1.4s
+    ```
+
+    캡처 길이가 발화 길이에 비례하면 통과.
+-   바로 정지하면 `ptt: captured 0.0s (empty)` (B3 에서 STT 조기 종료로 이어질 자리).
+-   녹음 중에도 서버는 listen — 봇이 connect 하면 `tcp: bot connected ...`(워커 스레드 분리 확인).
+-   **B2 통과 조건**: `,`→`recording...`, 다시 `,`→`captured <N>s`, 반복 동작. :5000 서버가 녹음에 안 막힘. X11 세션 필요(전역 핫키, Wayland 미지원).
+-   **`,` 눌러도 `recording...` 안 뜸** → X11 세션인지, 다른 앱이 `,` 를 가로채는지. `stt:` 가 엉뚱 → 마이크가 기본 입력 장치인지(`mise run voice` 시작 시 sounddevice 기본 장치 확인).
+
 ### 사전 준비 (1회성)
 
 ```bash
@@ -179,20 +206,22 @@ mise run voice-setup
 
 ### 반복 실행
 
+통합 테스트는 세 터미널에서 `run-*` 별칭으로 띄운다 (정식 이름은 괄호):
+
 1.  **음성 서비스 기동** (`nc` 대체):
 
     ```bash
-    mise run voice
+    mise run run-voice   # = voice
     ```
 
-    -   `base.en` 모델 로드 → `:5000` 서버 listen → F12 핫키 등록까지 끝나면 콘솔에 준비 로그.
+    -   `base.en` 모델 로드 → `:5000` 서버 listen → `,` 핫키 등록까지 끝나면 콘솔에 준비 로그.
 
-2.  **게임 + BWAPI 주입**: `mise run bw-bwapi`.
+2.  **게임 + BWAPI 주입**: `mise run run-game` (= `bw-bwapi`).
 3.  BW에서 single-player → 스톡 melee 맵 → **테란**으로 게임 시작 (MVP-A와 동일 harness, [ADR-007](decisions.md#adr-007) — 새 맵 없음).
-4.  **봇 .exe 실행**: `mise run bot-run`. 음성 콘솔에 봇 connect 로그 확인.
-5.  **F12를 누른 채** "produce SCV" (또는 build/make/train + scv) 말하고 **놓는다**.
+4.  **봇 .exe 실행**: `mise run run-bot` (= `bot-run`). 음성 콘솔에 봇 connect 로그 확인.
+5.  **`,` 눌러 시작** "produce SCV" (또는 build/make/train + scv) 말하고 **다시 `,` 눌러 정지**.
 6.  Command Center가 SCV 1기를 생산하는지 확인 (훈련 progress bar / 서플라이 카운트 증가).
-7.  반복: 다시 F12 누르고 말하기 → 또 한 기 생산.
+7.  반복: 다시 `,` 누르고 말하고 `,` 정지 → 또 한 기 생산.
 
 **체크포인트 통과 조건 = MVP-B 완료**: 5~6단계가 키보드 JSON 없이 음성만으로 SCV를 띄우고, 7단계가 반복된다. 인식 안 된 발화는 명령을 보내지 않고 콘솔에 이유를 남긴다. BWAPI 에러 로그 없음.
 
@@ -210,13 +239,13 @@ tcp: sent produce_scv
 
 실패 경로:
 
--   `stt: (empty)` — F12를 눌렀지만 음성이 안 잡힘 / 무음.
+-   `stt: (empty)` — `,` 로 녹음했지만 음성이 안 잡힘 / 무음.
 -   `nlu: no rule matched: "..."` — 동사+scv 조건 불충족.
 -   `tcp: no bot connected, dropped: produce_scv` — 봇이 매치에 없을 때 발화 (드롭, 큐잉 안 함).
 
 ### 디버깅 빠른 확인 (MVP-B)
 
--   **F12를 눌러도 `ptt: recording...`이 안 뜬다** → X11 세션인지, `pynput`이 핫키를 잡았는지 (다른 앱이 F12를 가로채는지).
+-   **`,` 를 눌러도 `ptt: recording...`이 안 뜬다** → X11 세션인지, `pynput`이 핫키를 잡았는지 (다른 앱이 `,` 를 가로채는지).
 -   **`stt:`가 매번 엉뚱한 텍스트** → 마이크가 기본 입력 장치로 잡혔는지, 너무 짧게 말했는지. `tiny.en`/`small.en`로 모델 조정 ([ADR-017](decisions.md#adr-017)).
 -   **`tcp: no bot connected`** → 봇이 매치에 진입했는지 (메뉴 상태면 봇이 :5000에 연결 안 됨). 봇 로그에서 "connected to 127.0.0.1:5000" 먼저 확인하고 말한다.
 -   **봇은 connect 했는데 SCV가 안 나온다** → MVP-A 디버깅 절차로 (getUnits 비었는지 / getLastError). 음성 경로는 `tcp: sent`까지 떴으면 정상.
