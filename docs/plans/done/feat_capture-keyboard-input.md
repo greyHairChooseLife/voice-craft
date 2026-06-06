@@ -1,4 +1,4 @@
-# B2 — PTT 캡처 (`,` 토글 전역 핫키 + 마이크 녹음 → numpy 버퍼)
+# B2 — PTT 캡처 (`,` 토글 전역 핫키 + 마이크 녹음 → numpy 버퍼) — 완료
 
 worktree `feat_capture-keyboard-input`. B1(asyncio TCP 서버, stdin→봇)에 이어, 음성 경로의 첫 입력단을 만든다 — `,` 토글로 마이크를 녹음해 mono 16 kHz `float32` numpy 버퍼로 만든다. STT(B3)·NLU(B4) 전 단계.
 
