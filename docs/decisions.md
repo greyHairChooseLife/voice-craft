@@ -205,3 +205,98 @@ wine injectory_x86.exe --launch StarCraft.exe --inject bwapi-data/BWAPI.dll WMod
 -   vendored 소스에 MinGW/GCC 호환 패치가 필요하다 (CommandTemp.h, SharedMemory.h — 별도 커밋). `<Windows.h>`→`<windows.h>` shim, `svnrev.h` stub도 함께 둔다.
 -   onFrame 콜백 대신 봇이 메인 루프에서 `BWAPIClient.update()`로 프레임 동기화한다 ([ADR-005](#adr-005) Note 참조).
 -   ADR-003을 대체한다. ADR-004(봇=TCP 클라이언트)의 "봇=클라이언트" 결론은 유지되나 근거의 AIModule 폐기 서술은 [ADR-004](#adr-004) Note로 갱신한다.
+
+
+## ADR-015: 음성 서비스는 단일 프로세스 2-스레드 (asyncio TCP + 음성 워커)
+
+**Status**: Accepted
+
+**Context**: MVP-B의 Python 음성 서비스는 다섯 단계를 묶는다 — PTT 키 리스너 → 마이크 캡처 → faster-whisper STT → 키워드 NLU → TCP 서버(:5000, 봇에 송신). 두 가지 제약이 동시성 구조를 강제한다: (1) TCP 서버는 매치 사이에 살아남아야 하고(봇이 매치마다 재연결, [ADR-004](#adr-004)), (2) STT 추론은 CPU 바운드 블로킹 호출이다. STT가 소켓과 같은 실행 단위에 있으면 전사 중 :5000이 멈춘다.
+
+**Decision**: TCP 서버와 음성 파이프라인을 분리하되, **별도 프로세스가 아니라 한 프로세스 안의 두 스레드**로 둔다.
+
+-   **메인 스레드** = asyncio 이벤트 루프. `127.0.0.1:5000` TCP 서버를 돌리고, 봇 연결을 보유하며, 스레드 안전 큐에서 명령을 꺼내 봇 소켓에 쓴다. whisper 모델을 메모리에 보유(콜드 스타트 없음, [ADR-004](#adr-004) 근거 유지).
+-   **워커 스레드** = PTT(F12) 리스너 + 마이크 캡처 + whisper 전사 + NLU. 인식된 JSON 라인을 `loop.call_soon_threadsafe(...)`로 메인 루프에 넘긴다.
+-   스레드→asyncio 브리지는 `loop.call_soon_threadsafe`로 처리한다.
+
+**Rationale**: 경계를 넘나드는 것은 분당 몇 개의 작은 JSON 라인뿐이고 단방향이다. 큰 공유 상태가 경계를 넘지 않는다(whisper 모델은 워커, 봇 소켓은 메인에 각각 갇혀 있음). 스레드로 충분한 이유: faster-whisper의 무거운 추론은 CTranslate2 네이티브 코드에서 GIL을 풀어주므로 TCP 스레드가 응답성을 유지한다 — GIL 경합이 실질 문제가 아니다. 별도 프로세스로 가면 voice→(로컬 IPC)→tcp→(TCP)→봇이라 25바이트 문자열 하나를 옮기는 데 IPC를 하나 더 발명해야 한다. 프로세스의 유일한 실이익(크래시 격리)은 단일 운영자가 한 터미널을 보는 MVP 규모에서 그 배관 비용을 정당화하지 못한다.
+
+**Consequences**: whisper 크래시가 TCP 서버도 죽인다 — MVP에선 어차피 전체 재기동이 정상 대응이므로 허용. STT를 봇/TCP 재시작과 독립적으로 살리고 싶거나 STT를 별도 머신에서 돌리고 싶어지면 그때 2-프로세스로 분리한다 ([ADR-005](#adr-005)의 "필요 시 변경" 노트와 같은 성격의 재검토 지점).
+
+
+## ADR-016: PTT는 F12, 누른 동안만 녹음, X11 전역 핫키
+
+**Status**: Accepted
+
+**Context**: 트리거는 푸시-투-토크([architecture.md](architecture.md) 확정). 운영자는 StarCraft(Wine 창)에 포커스를 둔 채 게임을 하므로 PTT 키는 터미널이 아니라 **시스템 전역**에서 잡혀야 한다. 녹음 구간 정의(누른 동안만 vs 고정 길이), 핫키 라이브러리, 게임과의 키 충돌을 정해야 한다.
+
+**Decision**:
+
+-   **누른 동안만 녹음**: F12 down → 마이크 스트림 시작, F12 up → 정지 후 전사. 고정 타임아웃·후행 무음 패딩 불필요.
+-   **전역 핫키**: `pynput.keyboard.Listener`의 `on_press`/`on_release` 엣지. X11에서 동작(개발 환경은 Arch + i3 = X11). Wayland은 보안 모델상 전역 핫키가 막히므로 범위 밖.
+-   **키 선택**: F12 — BW가 쓰지 않는 키라 누름이 게임 내 동작을 동시 유발하지 않는다.
+-   **캡처 포맷**: 마이크 = 시스템 기본 입력 장치, mono 16 kHz. 콜백 청크를 메모리에 모아 `numpy` `float32` 배열로 연결 → whisper에 직접 전달. 디스크·WAV 파일 없음.
+
+**Rationale**: 누른 동안만 녹음이 가장 자연스러운 PTT이고 발화 길이에 자동 적응한다. 전역 핫키는 게임에 포커스가 있어도 동작해야 하므로 필수. `pynput`은 root 불필요·pip 단독 설치라 `keyboard`(root 필요)·`evdev`(과도하게 저수준)보다 적합. `sounddevice`(PortAudio)는 16 kHz mono를 NumPy로 바로 주므로 `pyaudio`(raw bytes)보다 whisper 연결이 깔끔하다.
+
+**Consequences**: 라이브러리 셋: `pynput` + `sounddevice` + `numpy` + `faster-whisper`. Wayland로 전환하면 전역 핫키 경로 재검토 필요. F12가 BW에서 비어있는지는 실제 게임에서 확인(운영자 검증).
+
+
+## ADR-017: STT는 faster-whisper `base.en`, CPU int8
+
+**Status**: Accepted
+
+**Context**: STT는 faster-whisper 로컬([ADR-004](#adr-004)). 모델 크기·device·compute_type을 정해야 한다. 두 사실이 계산을 단순화한다: (1) 음성 인식은 **영어 전용**(접근성 확장은 나중), (2) 명령 어휘가 극히 작다 — NLU가 키워드만 잡으면 되므로 STT 정확도 요구가 낮다. 머신은 **CPU 전용**(GPU 없음).
+
+**Decision**:
+
+-   **모델**: `base.en` (영어 전용 `.en` 모델 — 같은 크기 multilingual보다 영어에 강하고 작다).
+-   **device/compute**: `device="cpu"`, `compute_type="int8"`. ~1–2초 명령 클립을 CPU에서 1초 미만으로 전사.
+-   **로드**: 시작 시 1회, 워커 스레드에 상주(콜드 스타트 없음 — [ADR-004](#adr-004) 근거 실현).
+-   **디코드 힌트**: `language="en"` 명시(언어 감지 생략), "SCV"로 편향하는 짧은 `initial_prompt` 옵션.
+
+**Rationale**: 명령 어휘가 작아 `base.en`이 정확도/지연의 스위트 스폿이다. int8 양자화는 `base.en`에서 충분하고 CPU 지연을 낮게 유지한다. API STT는 [ADR-004](#adr-004)의 "로컬 모델 메모리 상주 → 콜드 스타트 없음" 근거를 무너뜨리고, PTT가 원하는 *빠르고 예측 가능한* 지연 대신 가변 네트워크 왕복(1–3초)을 들이며, 키/인증/레이트리밋 같은 MVP가 검증하지 않는 실패 모드를 추가한다 → 로컬 유지.
+
+**Consequences**: CPU 지연이 불만이면 `tiny.en`으로 낮추고, 정확도가 불만이면 `small.en`으로 올린다(문자열 한 줄). 영어 외 언어는 범위 밖 — 다국어가 필요해지면 multilingual 모델 + `language` 동적 설정으로 재검토.
+
+
+## ADR-018: NLU는 (키워드, 명령) 규칙 리스트, 동사 + 명사 부분일치
+
+**Status**: Accepted
+
+**Context**: NLU는 키워드 딕셔너리 + 부분일치 스캔([architecture.md](architecture.md) 확정). 입력은 STT가 준 소문자 영어 문자열(예: `"produce an scv"`, `"build s c v"`, 잡음 `"the scframework"`), 출력은 `{"cmd":"produce_scv"}` 또는 **무명령**. 규칙 구조와 매칭 엄격도를 정해야 한다.
+
+**Decision**:
+
+-   **구조**: `(키워드 집합, 명령)` 규칙 리스트, 순서대로 스캔. MVP-B는 production 동사(`produce`/`make`/`build`/`train`) **그리고** `scv`가 모두 있어야 발화.
+    ```python
+    RULES = [
+        # 동사 집합 AND "scv" 가 transcript에 모두 있으면 발화
+        (["produce", "make", "build", "train"], ["scv"], "produce_scv"),
+    ]
+    ```
+-   **매칭**: 정규화(소문자화, 구두점 제거, 공백 압축) 후 부분일치 스캔. "S.C.V."도 점 제거 후 "scv" 포함.
+-   **무매칭 → 무명령**: `nlu: no rule matched: "<transcript>"` 로깅. 봇에 잡음을 절대 보내지 않는다.
+-   **first-match-wins**: 여러 규칙이 발화 가능하면 순서가 우선순위. 명령 1개에선 무의미하나 두 번째 명령 전에 동작을 정의해 둔다.
+
+**Rationale**: 부분일치는 filler 단어("an", "please", "i want")를 견디는데, 그게 정확 일치 대신 키워드 NLU를 쓰는 이유다. 동사 + 명사 동시 요구는 "cancel scv"·"move scv" 같은 오발화를 막아 좀 더 의도적이다.
+
+**Consequences**: 명령이 겹치기 시작하면(예: cancel/move도 scv를 포함) negative 키워드나 더 정교한 동사 로직이 필요하다 — 그 시점에 규칙 구조를 확장한다. 빈/공백 전사는 NLU 이전에 조기 종료(`stt: (empty)`).
+
+
+## ADR-019: Python TCP 서버가 `nc`를 대체, 봇 없을 때 명령 드롭
+
+**Status**: Accepted
+
+**Context**: MVP-B에서 Python 서비스가 :5000 서버가 되어 MVP-A의 `nc -l -k 5000`을 은퇴시킨다([ADR-004](#adr-004)의 Python=서버 설계 실현). 봇은 클라이언트로 **매치마다 재연결**한다. 서버는 매치 전체를 가로질러 살아남으며 "봇 미연결 / 연결 / 끊김(매치 종료) / 재연결" 생애주기를 처리해야 한다. 동시에 음성 스레드가 언제든 명령을 만들어낸다.
+
+**Decision**:
+
+-   **asyncio 서버** `127.0.0.1:5000`, 한 번에 봇 1개 연결만 수용(봇은 항상 1개).
+-   현재 봇 writer 참조를 보유: accept → 저장, disconnect → 클리어, reconnect → 교체. 두 번째 봇이 붙으면 옛 writer를 닫고 교체(단일 봇 불변식).
+-   **봇 미연결 중 생성된 명령 → 드롭 + 로그**(`tcp: no bot connected, dropped: produce_scv`). 미래 연결을 위해 큐잉하지 않는다.
+-   전송 = JSON 라인 1개 + `\n`(MVP-A가 검증한 와이어 포맷 그대로).
+
+**Rationale**: 드롭-비큐잉의 근거: 30초 전에 말한 "produce SCV"가 다음 매치 시작 순간 발화하면 놀랍고 틀린 동작이다. 명령은 현재 매치에 묶인 실시간 의도이고, 이는 MVP-A의 fire-and-forget 느낌과 일치한다.
+
+**Consequences**: `nc`는 MVP-B에서 은퇴한다(디버그 폴백으로도 두지 않음 — [AGENTS.md] done-criteria). 봇이 매치에 없을 때 말한 명령은 사라지므로 운영자는 봇 로그에서 매치 진입을 확인한 뒤 말한다. 명령을 버퍼링하고 싶어지면 그때 "마지막 명령만 connect 시 flush" 같은 정책으로 재검토.

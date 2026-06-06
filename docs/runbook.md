@@ -128,6 +128,62 @@ A4(TCP echo)까지 통과한 뒤, 여기서 `on_line` 콜백에 JSON 파싱 + `p
 -   **두 번째 매치부터 봇이 명령에 반응하지 않는다** → 봇의 재연결 루프가 누락 (ADR-004).
 
 
-## MVP-B 실행 절차
+## MVP-B 실행 절차 (음성 경로)
 
-MVP-B 설계가 확정된 뒤 이 섹션에 추가한다. PTT 키 바인딩, faster-whisper 모델 로드, Python 서비스 기동 명령어 등이 들어갈 자리.
+MVP-A의 `nc` 단계를 Python 음성 서비스가 대체한다 ([ADR-019](decisions.md#adr-019)). 영어 전용. 동시성·STT·NLU 설계는 [ADR-015](decisions.md#adr-015)~[ADR-018](decisions.md#adr-018).
+
+### 사전 준비 (1회성)
+
+```bash
+# Python 의존성 설치 (voice/ 패키지)
+#   pynput + sounddevice + numpy + faster-whisper
+#   sounddevice는 PortAudio 시스템 패키지 필요할 수 있음 (Arch: portaudio)
+mise run voice-setup
+```
+
+-   `base.en` 모델은 첫 실행 시 자동 다운로드되어 캐시된다 (이후 재사용).
+-   X11 세션이어야 한다 (전역 핫키 — Wayland 미지원, [ADR-016](decisions.md#adr-016)).
+
+### 반복 실행
+
+1.  **음성 서비스 기동** (`nc` 대체):
+
+    ```bash
+    mise run voice
+    ```
+
+    -   `base.en` 모델 로드 → `:5000` 서버 listen → F12 핫키 등록까지 끝나면 콘솔에 준비 로그.
+
+2.  **게임 + BWAPI 주입**: `mise run bw-bwapi`.
+3.  BW에서 single-player → 스톡 melee 맵 → **테란**으로 게임 시작 (MVP-A와 동일 harness, [ADR-007](decisions.md#adr-007) — 새 맵 없음).
+4.  **봇 .exe 실행**: `mise run bot-run`. 음성 콘솔에 봇 connect 로그 확인.
+5.  **F12를 누른 채** "produce SCV" (또는 build/make/train + scv) 말하고 **놓는다**.
+6.  Command Center가 SCV 1기를 생산하는지 확인 (훈련 progress bar / 서플라이 카운트 증가).
+7.  반복: 다시 F12 누르고 말하기 → 또 한 기 생산.
+
+**체크포인트 통과 조건 = MVP-B 완료**: 5~6단계가 키보드 JSON 없이 음성만으로 SCV를 띄우고, 7단계가 반복된다. 인식 안 된 발화는 명령을 보내지 않고 콘솔에 이유를 남긴다. BWAPI 에러 로그 없음.
+
+### 콘솔 로그로 읽는 단계 (피드백)
+
+운영자는 게임을 보지만 진단은 음성 콘솔 로그로 한다 ([ADR-015](decisions.md#adr-015)):
+
+```
+ptt: recording...
+ptt: captured 1.4s
+stt: "produce an scv"
+nlu: matched produce_scv
+tcp: sent produce_scv
+```
+
+실패 경로:
+
+-   `stt: (empty)` — F12를 눌렀지만 음성이 안 잡힘 / 무음.
+-   `nlu: no rule matched: "..."` — 동사+scv 조건 불충족.
+-   `tcp: no bot connected, dropped: produce_scv` — 봇이 매치에 없을 때 발화 (드롭, 큐잉 안 함).
+
+### 디버깅 빠른 확인 (MVP-B)
+
+-   **F12를 눌러도 `ptt: recording...`이 안 뜬다** → X11 세션인지, `pynput`이 핫키를 잡았는지 (다른 앱이 F12를 가로채는지).
+-   **`stt:`가 매번 엉뚱한 텍스트** → 마이크가 기본 입력 장치로 잡혔는지, 너무 짧게 말했는지. `tiny.en`/`small.en`로 모델 조정 ([ADR-017](decisions.md#adr-017)).
+-   **`tcp: no bot connected`** → 봇이 매치에 진입했는지 (메뉴 상태면 봇이 :5000에 연결 안 됨). 봇 로그에서 "connected to 127.0.0.1:5000" 먼저 확인하고 말한다.
+-   **봇은 connect 했는데 SCV가 안 나온다** → MVP-A 디버깅 절차로 (getUnits 비었는지 / getLastError). 음성 경로는 `tcp: sent`까지 떴으면 정상.
