@@ -1,4 +1,4 @@
-# B3 — STT (faster-whisper `base.en` 으로 캡처 버퍼 전사)
+# B3 — STT (faster-whisper `base.en` 으로 캡처 버퍼 전사) — 완료
 
 worktree `feat_STT-with-fast-whisper`. B2(PTT 캡처 → numpy 버퍼)에 이어, 캡처 버퍼를 faster-whisper 로 전사해 `stt: "..."` 를 로그한다. NLU(B4)·봇 송신(B5) 전 단계.
 
