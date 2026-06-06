@@ -132,6 +132,39 @@ A4(TCP echo)까지 통과한 뒤, 여기서 `on_line` 콜백에 JSON 파싱 + `p
 
 MVP-A의 `nc` 단계를 Python 음성 서비스가 대체한다 ([ADR-019](decisions.md#adr-019)). 영어 전용. 동시성·STT·NLU 설계는 [ADR-015](decisions.md#adr-015)~[ADR-018](decisions.md#adr-018).
 
+아래 "사전 준비 / 반복 실행"은 음성 경로 전체(B5)가 결선된 뒤의 최종 흐름이다. 체크포인트별 중간 검증은 그 앞에 둔다.
+
+### B1 — asyncio TCP 서버 (stdin 입력, `nc` 대체 검증)
+
+음성 경로 결선 전, 서버가 봇 1개 연결을 보유하고 명령을 전달하는지만 검증한다 ([ADR-019](decisions.md#adr-019)). 음성 입력 자리에 **stdin** 을 둬 MVP-A의 `nc` 흐름을 그대로 재현한다. PTT·STT·NLU 의존성은 아직 깔지 않는다 (B1 은 stdlib `asyncio` 만).
+
+```bash
+# 1회성 — uv + voice/.venv 생성 (B1 은 의존성 없음, 패키지만 설치)
+mise run voice-setup
+
+# 터미널 1 — 음성 서버 (stdin 으로 JSON 입력)
+mise run voice
+#   → "tcp: listening on 127.0.0.1:5000"
+
+# 터미널 2 — 게임 + BWAPI 주입
+mise run bw-bwapi   # → single-player 테란 매치 진입
+
+# 터미널 3 — 봇 .exe
+mise run bot-run
+```
+
+-   봇 연결 시 서버 콘솔: `tcp: bot connected 127.0.0.1:...`, 봇 콘솔: `voice: connected to 127.0.0.1:5000`.
+-   서버 터미널(터미널 1)의 stdin 에 한 줄 입력 → 봇에 전달:
+
+    ```
+    {"cmd":"produce_scv"}
+    ```
+
+    서버 콘솔 `tcp: sent ...`, 봇이 SCV 1기 생산 (A5 디스패치 재사용).
+-   봇 미연결 중 입력하면 `tcp: no bot connected, dropped: ...` (큐잉 안 함, [ADR-019](decisions.md#adr-019)).
+-   봇 재연결 시 writer 교체 (`tcp: replacing bot ...`) — 두 번째 봇이 붙으면 옛 연결을 닫는다 (단일 봇 불변식).
+-   **B1 통과 조건**: 서버가 `:5000` 에 listen, 봇이 connect, stdin 한 줄이 봇까지 도달해 SCV 생산. `nc` 없이 동작.
+
 ### 사전 준비 (1회성)
 
 ```bash

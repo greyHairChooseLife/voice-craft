@@ -108,7 +108,10 @@ voice-craft/
 │           ├── shim/Windows.h   (MinGW 소문자 헤더명 리다이렉트)
 │           └── svnrev.h         (Windows cscript 생성 단계 stub)
 └── voice/                # Python 음성 서비스 (MVP-B)
+    ├── pyproject.toml    # uv + voice/.venv (B1 은 stdlib 만; 음성 의존성은 B2~)
     └── voice_craft/      # PTT·마이크·STT·NLU·asyncio TCP 서버
+        ├── server.py    # asyncio TCP 서버 (:5000), 봇 1개 연결 보유 (B1, ADR-019)
+        └── __main__.py  # 진입점 — B1 은 stdin→봇 (음성 자리에 수동 입력)
 ```
 
 최상위 컴포넌트 디렉터리 + 컴포넌트 내부의 자체 `src/` ([ADR-009](decisions.md#adr-009)).

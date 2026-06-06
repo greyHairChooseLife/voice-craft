@@ -12,6 +12,8 @@ WINEARCH = "win64"
 BW_DIR = "{{env.HOME}}/sc-bw-1161"
 # 봇 소스 디렉터리 (Docker 빌드 mount 대상).
 BOT_DIR = "{{config_root}}/bot"
+# 음성 서비스(Python) 디렉터리 (MVP-B).
+VOICE_DIR = "{{config_root}}/voice"
 # 봇 빌드용 Docker 이미지 태그.
 BOT_IMAGE = "voice-craft-bot-build"
 # Wine virtual desktop 크기 (i3 윈도우 모드용).
@@ -140,4 +142,30 @@ set -euo pipefail
 # 게임과 동일 WINEPREFIX([env])에서 실행해야 shared memory를 공유한다.
 # 게임을 먼저 mise run bw-bwapi 로 띄우고 매치에 진입한 상태여야 한다.
 wine "$BOT_DIR/build/voice-craft-bot.exe"
+'''
+
+# --- B1: 음성 서비스 asyncio TCP 서버 (:5000, nc 대체, ADR-019) ---
+# Python 의존성은 uv + 프로젝트 로컬 venv(voice/.venv)로 격리한다. B1 은
+# stdlib(asyncio)만 쓰므로 voice-setup 은 venv 생성만 한다 — 음성 경로
+# 의존성(pynput·sounddevice·numpy·faster-whisper)은 B2~B4 에서 추가된다.
+
+[tasks.voice-setup]
+description = "음성 서비스 의존성 설치 (uv + voice/.venv) — 1회성"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$VOICE_DIR"
+# 프로젝트 로컬 venv 에 editable 설치. B1 은 의존성이 없어 패키지만 들어간다.
+uv venv
+uv pip install -e .
+echo "voice venv: $VOICE_DIR/.venv"
+'''
+
+[tasks.voice]
+description = "음성 서비스 기동 (asyncio TCP :5000). B1 은 stdin 으로 JSON 라인 입력 → 봇 전달"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$VOICE_DIR"
+uv run python -m voice_craft
 '''
