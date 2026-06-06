@@ -192,6 +192,35 @@ mise run voice
 -   **B2 통과 조건**: `,`→`recording...`, 다시 `,`→`captured <N>s`, 반복 동작. :5000 서버가 녹음에 안 막힘. X11 세션 필요(전역 핫키, Wayland 미지원).
 -   **`,` 눌러도 `recording...` 안 뜸** → X11 세션인지, 다른 앱이 `,` 를 가로채는지. `stt:` 가 엉뚱 → 마이크가 기본 입력 장치인지(`mise run voice` 시작 시 sounddevice 기본 장치 확인).
 
+### B3 — STT (faster-whisper `base.en` 으로 캡처 버퍼 전사)
+
+STT 단만 검증한다 ([ADR-017](decisions.md#adr-017)). B2 의 캡처 버퍼를 faster-whisper 로 전사해 `stt: "..."` 를 로그한다 — NLU(B4)·봇 송신(B5) 전이라 전사 텍스트는 봇에 가지 않는다. 모델은 시작 시 1회 로드(콜드 스타트 없음). B1 의 stdin 펌프, B2 의 PTT 캡처는 그대로 동시 동작한다.
+
+```bash
+# 1회성 — faster-whisper 추가 설치 (base.en 모델은 첫 실행 시 자동 다운로드)
+mise run voice-setup
+
+# 음성 서버 + PTT 캡처 + STT
+mise run voice
+#   → "stt: model loaded (base.en, cpu int8)"
+#   → "tcp: listening on 127.0.0.1:5000"
+#   → "ptt: ready (, to start/stop)"
+```
+
+-   **`,` 눌러 시작**, "produce an scv" 말하고, **다시 `,` 눌러 정지**:
+
+    ```
+    ptt: recording...
+    ptt: captured 1.4s
+    stt: "produce an scv"
+    ```
+
+    전사가 발화에 대응하면 통과. 명령 어휘가 작아 정확히 일치할 필요는 없다(B4 NLU 가 키워드만 잡음).
+-   바로 정지(빈 캡처)하면 모델을 안 돌리고 `stt: (empty)`.
+-   전사 중에도 :5000 서버는 listen — CTranslate2 가 GIL 을 풀어 봇 connect 가능([ADR-015](decisions.md#adr-015)).
+-   **B3 통과 조건**: `,` 토글 캡처 → `stt: "<전사>"` 로그. 모델 시작 시 1회 로드. 빈 캡처는 `stt: (empty)`. 전사 중 :5000 안 막힘.
+-   **`stt:`가 매번 엉뚱** → 마이크가 기본 입력 장치인지, 너무 짧게 말했는지. 정확도/지연은 `tiny.en`/`small.en` 로 조정([ADR-017](decisions.md#adr-017), `stt.py` `MODEL` 한 줄).
+
 ### 사전 준비 (1회성)
 
 ```bash

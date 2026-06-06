@@ -3,7 +3,7 @@
 `,` 를 한 번 누르면 녹음 시작, 다시 누르면 정지(토글 PTT). `pynput` 전역
 핫키가 StarCraft(Wine 창)에 포커스가 있어도 동작하고, `sounddevice`
 InputStream 이 콜백으로 주는 청크를 모아 mono 16 kHz `float32` numpy 배열로
-연결한다. 디스크·WAV 없음 — 버퍼를 바로 콜백에 넘긴다(B3 에서 whisper 전사).
+연결한다. 디스크·WAV 없음 — 버퍼를 바로 콜백에 넘긴다(B3: whisper 전사).
 
 워커 측 단(ADR-015): pynput 리스너 스레드 + sounddevice 오디오 스레드. asyncio
 루프와 분리돼 녹음·전사 중에도 :5000 서버가 멈추지 않는다.
