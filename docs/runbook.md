@@ -165,6 +165,33 @@ mise run bot-run
 -   봇 재연결 시 writer 교체 (`tcp: replacing bot ...`) — 두 번째 봇이 붙으면 옛 연결을 닫는다 (단일 봇 불변식).
 -   **B1 통과 조건**: 서버가 `:5000` 에 listen, 봇이 connect, stdin 한 줄이 봇까지 도달해 SCV 생산. `nc` 없이 동작.
 
+### B2 — PTT 캡처 (F12 + 마이크 → numpy 버퍼)
+
+음성 입력단만 검증한다 ([ADR-016](decisions.md#adr-016)). F12 를 누른 동안 마이크를 녹음해 numpy 버퍼를 만들고 길이를 로그한다 — STT(B3)·봇 송신(B5) 전이라 버퍼는 봇에 가지 않는다. B1 의 stdin 펌프는 그대로 남아 동시 동작한다.
+
+```bash
+# 1회성 — 음성 의존성 설치 (pynput·sounddevice·numpy)
+mise run voice-setup
+
+# 음성 서버 + PTT 캡처
+mise run voice
+#   → "tcp: listening on 127.0.0.1:5000"
+#   → "ptt: ready (F12 to talk)"
+```
+
+-   **F12 를 누른 채** 잠깐 말하고 **놓는다**:
+
+    ```
+    ptt: recording...
+    ptt: captured 1.4s
+    ```
+
+    캡처 길이가 발화 길이에 비례하면 통과.
+-   즉시 떼면 `ptt: captured 0.0s (empty)` (B3 에서 STT 조기 종료로 이어질 자리).
+-   녹음 중에도 서버는 listen — 봇이 connect 하면 `tcp: bot connected ...`(워커 스레드 분리 확인).
+-   **B2 통과 조건**: F12 down→`recording...`, up→`captured <N>s`, 반복 동작. :5000 서버가 녹음에 안 막힘. X11 세션 필요(전역 핫키, Wayland 미지원).
+-   **F12 눌러도 `recording...` 안 뜸** → X11 세션인지, 다른 앱이 F12 를 가로채는지. `stt:` 가 엉뚱 → 마이크가 기본 입력 장치인지(`mise run voice` 시작 시 sounddevice 기본 장치 확인).
+
 ### 사전 준비 (1회성)
 
 ```bash

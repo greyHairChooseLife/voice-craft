@@ -64,7 +64,7 @@ clone 직후 MVP-A를 처음 돌려보는 흐름. 상세 명령·통과 조건·
 영어 전용. Python 음성 서비스가 :5000 서버가 되어 `nc`를 은퇴시킨다 ([ADR-015](docs/decisions.md#adr-015)~[ADR-019](docs/decisions.md#adr-019)). 설계 확정은 grilling 세션 (architecture.md 음성 측 / runbook MVP-B 절차 참조).
 
 - [x]   B1. `voice/` 패키지 스캐폴드 + asyncio TCP 서버 (:5000, 봇 connect/echo 검증, `nc` 대체, ADR-019) - `feat_tcp-part-of-voice-server`
-- [ ]   B2. PTT 캡처 — F12 전역 핫키 + 마이크 녹음 (누른 동안 녹음 → numpy 버퍼, ADR-016)
+- [x]   B2. PTT 캡처 — F12 전역 핫키 + 마이크 녹음 (누른 동안 녹음 → numpy 버퍼, ADR-016) - `feat_capture-keyboard-input`
 - [ ]   B3. faster-whisper STT — `base.en` cpu/int8, 버퍼 → 텍스트 콘솔 출력 (ADR-017)
 - [ ]   B4. 키워드 NLU — 동사+scv → `produce_scv` JSON, 무매칭 드롭 (ADR-018)
 - [ ]   B5. 전체 경로 결선 — 워커 스레드→asyncio 브리지, 음성만으로 SCV 생산 (**MVP-B 완료**, ADR-015)
