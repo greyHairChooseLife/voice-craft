@@ -206,17 +206,19 @@ mise run voice-setup
 
 ### 반복 실행
 
+통합 테스트는 세 터미널에서 `run-*` 별칭으로 띄운다 (정식 이름은 괄호):
+
 1.  **음성 서비스 기동** (`nc` 대체):
 
     ```bash
-    mise run voice
+    mise run run-voice   # = voice
     ```
 
     -   `base.en` 모델 로드 → `:5000` 서버 listen → `,` 핫키 등록까지 끝나면 콘솔에 준비 로그.
 
-2.  **게임 + BWAPI 주입**: `mise run bw-bwapi`.
+2.  **게임 + BWAPI 주입**: `mise run run-game` (= `bw-bwapi`).
 3.  BW에서 single-player → 스톡 melee 맵 → **테란**으로 게임 시작 (MVP-A와 동일 harness, [ADR-007](decisions.md#adr-007) — 새 맵 없음).
-4.  **봇 .exe 실행**: `mise run bot-run`. 음성 콘솔에 봇 connect 로그 확인.
+4.  **봇 .exe 실행**: `mise run run-bot` (= `bot-run`). 음성 콘솔에 봇 connect 로그 확인.
 5.  **`,` 눌러 시작** "produce SCV" (또는 build/make/train + scv) 말하고 **다시 `,` 눌러 정지**.
 6.  Command Center가 SCV 1기를 생산하는지 확인 (훈련 progress bar / 서플라이 카운트 증가).
 7.  반복: 다시 `,` 누르고 말하고 `,` 정지 → 또 한 기 생산.

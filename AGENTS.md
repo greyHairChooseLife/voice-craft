@@ -74,6 +74,6 @@ clone 직후 MVP-A를 처음 돌려보는 흐름. 상세 명령·통과 조건·
 음성만으로 SCV 등장. 상세 명령·통과 조건·디버깅은 [runbook MVP-B 절차](docs/runbook.md#mvp-b-실행-절차-음성-경로)에 있다 (여긴 포인터만).
 
 1.  **1회성**: `mise run voice-setup` (Python 의존성 — pynput/sounddevice/numpy/faster-whisper). X11 세션 필요.
-2.  **반복 실행**: `mise run voice` (서버+모델+PTT) → `mise run bw-bwapi` (테란 melee) → `mise run bot-run` (봇).
+2.  **반복 실행** (통합 `run-*` 별칭): `mise run run-voice` (서버+모델+PTT) → `mise run run-game` (테란 melee) → `mise run run-bot` (봇).
     -   **`,` 눌러 시작** "produce SCV" 말하고 **`,` 눌러 정지** → CC가 SCV 1기 생산.
 -   키보드 JSON 입력 없음 — 전부 음성. 진단은 음성 콘솔 로그 스트림으로 한다.
