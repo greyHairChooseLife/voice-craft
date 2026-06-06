@@ -1,15 +1,15 @@
 """voice-craft 음성 서비스 진입점.
 
-asyncio TCP 서버(:5000) + PTT 마이크 캡처(F12)를 함께 띄운다.
+asyncio TCP 서버(:5000) + PTT 마이크 캡처(`,` 토글)를 함께 띄운다.
 
 - B1: 봇 연결 검증용 **stdin** → 봇 펌프 (`nc` 대체 수동 입력판).
-- B2: PTT 캡처 워커 — F12 누른 동안 녹음 → numpy 버퍼 길이만 로그(ADR-016).
+- B2: PTT 캡처 워커 — `,` 토글로 녹음 → numpy 버퍼 길이만 로그(ADR-016).
   버퍼는 B3 에서 whisper 전사로, B5 에서 봇 송신으로 이어진다(ADR-015).
 
 stdin 펌프는 음성 경로가 완전 결선되는 B5 까지 PTT 와 동시 실행으로 둔다.
 
     mise run voice
-    # 봇 connect 로그 확인 후, 한 줄 입력하거나 F12 눌러 말한다:
+    # 봇 connect 로그 확인 후, 한 줄 입력하거나 `,` 눌러 말한다:
     {"cmd":"produce_scv"}
 """
 from __future__ import annotations
