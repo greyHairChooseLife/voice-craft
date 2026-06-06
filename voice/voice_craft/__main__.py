@@ -5,7 +5,8 @@ asyncio TCP 서버(:5000) + PTT 마이크 캡처(`,` 토글)를 함께 띄운다
 - B1: 봇 연결 검증용 **stdin** → 봇 펌프 (`nc` 대체 수동 입력판).
 - B2: PTT 캡처 워커 — `,` 토글로 녹음 → numpy 버퍼(ADR-016).
 - B3: 캡처 버퍼를 faster-whisper 로 전사 → `stt: "..."` 로그(ADR-017).
-  전사 텍스트는 B4 에서 NLU 로, B5 에서 봇 송신으로 이어진다(ADR-015).
+- B4: 전사를 키워드 NLU 로 매칭 → `nlu: matched <cmd>` 로그(ADR-018).
+  매칭 결과는 B5 에서 봇 송신으로 이어진다(ADR-015).
 
 stdin 펌프는 음성 경로가 완전 결선되는 B5 까지 PTT 와 동시 실행으로 둔다.
 
@@ -20,6 +21,7 @@ import sys
 
 import numpy as np
 
+from . import nlu
 from .capture import CaptureWorker, SAMPLE_RATE
 from .server import CommandServer
 from .stt import Transcriber
@@ -42,11 +44,12 @@ async def _pump_stdin(server: CommandServer) -> None:
 
 
 def _make_on_utterance(stt: Transcriber):
-    """B3: 캡처 버퍼를 whisper 로 전사해 `stt: "..."` 로그 — 봇엔 아직 안 보낸다.
+    """B3+B4: 캡처 버퍼를 전사(STT)하고 키워드 NLU 로 명령을 매칭해 로그한다.
 
-    빈 버퍼(바로 정지)는 전사를 건너뛰고 `stt: (empty)`. 워커 스레드(pynput
-    콜백)에서 호출되므로 전사가 asyncio 루프를 막지 않는다(ADR-015). B4 에서
-    전사 텍스트가 NLU 로, B5 에서 `server.submit()` 으로 이어진다.
+    빈 버퍼(바로 정지)는 전사를 건너뛰고 `stt: (empty)`. 비지 않은 전사는
+    `nlu.match()` 로 명령을 잡아 `nlu: matched <cmd>` / `nlu: no rule matched`
+    로그. 워커 스레드(pynput 콜백)에서 호출되므로 전사가 asyncio 루프를 막지
+    않는다(ADR-015). B5 에서 매칭 결과를 `server.submit()` 으로 봇에 보낸다.
     """
 
     def _on_utterance(buf: np.ndarray) -> None:
@@ -54,10 +57,15 @@ def _make_on_utterance(stt: Transcriber):
             print("stt: (empty)", flush=True)
             return
         text = stt.transcribe(buf)
-        if text:
-            print(f'stt: "{text}"', flush=True)
-        else:
+        if not text:
             print("stt: (empty)", flush=True)
+            return
+        print(f'stt: "{text}"', flush=True)
+        cmd = nlu.match(text)
+        if cmd:
+            print(f"nlu: matched {cmd}", flush=True)
+        else:
+            print(f'nlu: no rule matched: "{text}"', flush=True)
 
     return _on_utterance
 
