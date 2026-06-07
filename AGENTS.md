@@ -67,7 +67,7 @@ clone 직후 MVP-A를 처음 돌려보는 흐름. 상세 명령·통과 조건·
 - [x]   B2. PTT 캡처 — `,` 토글 전역 핫키 + 마이크 녹음 (토글 → numpy 버퍼, ADR-016) - `feat_capture-keyboard-input`
 - [x]   B3. faster-whisper STT — `base.en` cpu/int8, 버퍼 → 텍스트 콘솔 출력 (ADR-017) - `feat_STT-with-fast-whisper`
 - [x]   B4. 키워드 NLU — 동사+scv → `produce_scv` JSON, 무매칭 드롭 (ADR-018) - `feat_NLU-by-pattern-matching`
-- [ ]   B5. 전체 경로 결선 — 워커 스레드→asyncio 브리지, 음성만으로 SCV 생산 (**MVP-B 완료**, ADR-015)
+- [x]   B5. 전체 경로 결선 — 워커 스레드→asyncio 브리지, 음성만으로 SCV 생산 (**MVP-B 완료**, ADR-015) - `feat_unify-Bot-and-Voice`
 
 #### MVP-B 검증
 

@@ -136,6 +136,8 @@ MVP-A의 `nc` 단계를 Python 음성 서비스가 대체한다 ([ADR-019](decis
 
 ### B1 — asyncio TCP 서버 (stdin 입력, `nc` 대체 검증)
 
+> **B5 에서 stdin 펌프는 은퇴했다** (음성 전용 결선, [ADR-015](decisions.md#adr-015)). 아래 stdin 흐름은 B1 시점의 중간 검증 기록이며, 현재 진입점엔 stdin 입력이 없다. 일상 실행은 [반복 실행](#반복-실행) 의 음성 경로를 쓴다.
+
 음성 경로 결선 전, 서버가 봇 1개 연결을 보유하고 명령을 전달하는지만 검증한다 ([ADR-019](decisions.md#adr-019)). 음성 입력 자리에 **stdin** 을 둬 MVP-A의 `nc` 흐름을 그대로 재현한다. PTT·STT·NLU 의존성은 아직 깔지 않는다 (B1 은 stdlib `asyncio` 만).
 
 ```bash

@@ -1,23 +1,26 @@
-"""voice-craft 음성 서비스 진입점.
+"""voice-craft 음성 서비스 진입점 — 전체 음성 경로 결선 (B5, MVP-B 완료).
 
-asyncio TCP 서버(:5000) + PTT 마이크 캡처(`,` 토글)를 함께 띄운다.
+asyncio TCP 서버(:5000) + PTT 마이크 캡처(`,` 토글)를 한 프로세스에서 띄워
+음성만으로 봇에 명령을 보낸다(ADR-015):
 
-- B1: 봇 연결 검증용 **stdin** → 봇 펌프 (`nc` 대체 수동 입력판).
+    PTT 캡처(B2) → STT 전사(B3) → NLU 매칭(B4) → 봇 송신(B5)
+
 - B2: PTT 캡처 워커 — `,` 토글로 녹음 → numpy 버퍼(ADR-016).
 - B3: 캡처 버퍼를 faster-whisper 로 전사 → `stt: "..."` 로그(ADR-017).
 - B4: 전사를 키워드 NLU 로 매칭 → `nlu: matched <cmd>` 로그(ADR-018).
-  매칭 결과는 B5 에서 봇 송신으로 이어진다(ADR-015).
+- B5: 매칭된 명령을 와이어 JSON 으로 감싸 `server.submit()` 으로 봇에 송신.
 
-stdin 펌프는 음성 경로가 완전 결선되는 B5 까지 PTT 와 동시 실행으로 둔다.
+전사·NLU·송신은 모두 워커 스레드(pynput 콜백)에서 돌고, `server.submit()` 이
+`call_soon_threadsafe` 로 asyncio 루프에 브리지한다(ADR-015) — 녹음·전사 중에도
+:5000 서버가 멈추지 않는다. stdin 수동 입력은 B5 에서 은퇴했다(음성 전용).
 
     mise run voice
-    # 봇 connect 로그 확인 후, 한 줄 입력하거나 `,` 눌러 말한다:
-    {"cmd":"produce_scv"}
+    # 봇 connect 로그 확인 후, `,` 눌러 시작 → 말하고 → `,` 눌러 정지.
 """
 from __future__ import annotations
 
 import asyncio
-import sys
+import json
 
 import numpy as np
 
@@ -27,29 +30,14 @@ from .server import CommandServer
 from .stt import Transcriber
 
 
-async def _pump_stdin(server: CommandServer) -> None:
-    """stdin 라인을 읽어 봇에 전달 (B1 수동 검증용).
+def _make_on_utterance(stt: Transcriber, server: CommandServer):
+    """전체 음성 경로 콜백: 캡처 버퍼 → STT → NLU → 봇 송신 (B5, ADR-015).
 
-    `run_in_executor` 로 블로킹 readline 을 워커에 넘겨 asyncio 루프를 막지
-    않는다. EOF(Ctrl-D / 파이프 종료)면 조용히 멈춘다 — 서버는 계속 돈다.
-    """
-    loop = asyncio.get_running_loop()
-    while True:
-        line = await loop.run_in_executor(None, sys.stdin.readline)
-        if not line:  # EOF
-            return
-        line = line.strip()
-        if line:
-            server.send(line)
-
-
-def _make_on_utterance(stt: Transcriber):
-    """B3+B4: 캡처 버퍼를 전사(STT)하고 키워드 NLU 로 명령을 매칭해 로그한다.
-
-    빈 버퍼(바로 정지)는 전사를 건너뛰고 `stt: (empty)`. 비지 않은 전사는
-    `nlu.match()` 로 명령을 잡아 `nlu: matched <cmd>` / `nlu: no rule matched`
-    로그. 워커 스레드(pynput 콜백)에서 호출되므로 전사가 asyncio 루프를 막지
-    않는다(ADR-015). B5 에서 매칭 결과를 `server.submit()` 으로 봇에 보낸다.
+    빈 버퍼(바로 정지)는 전사를 건너뛰고 `stt: (empty)`. 전사가 NLU 규칙에
+    매칭되면 명령을 와이어 JSON(`{"cmd": ...}`, MVP-A 포맷)으로 감싸
+    `server.submit()` 으로 봇에 보낸다 — 무매칭이면 아무것도 안 보낸다(잡음
+    차단, ADR-018). 워커 스레드(pynput 콜백)에서 호출되므로 전사·송신이
+    asyncio 루프를 막지 않는다(`submit` 이 루프 스레드로 브리지, ADR-015).
     """
 
     def _on_utterance(buf: np.ndarray) -> None:
@@ -62,21 +50,20 @@ def _make_on_utterance(stt: Transcriber):
             return
         print(f'stt: "{text}"', flush=True)
         cmd = nlu.match(text)
-        if cmd:
-            print(f"nlu: matched {cmd}", flush=True)
-        else:
+        if not cmd:
             print(f'nlu: no rule matched: "{text}"', flush=True)
+            return
+        print(f"nlu: matched {cmd}", flush=True)
+        server.submit(json.dumps({"cmd": cmd}))
 
     return _on_utterance
 
 
 async def _main(stt: Transcriber) -> None:
     server = CommandServer()
-    capture = CaptureWorker(_make_on_utterance(stt))
+    capture = CaptureWorker(_make_on_utterance(stt, server))
     capture.start()  # pynput 리스너 스레드 등록 (논블로킹, ADR-015)
-    async with asyncio.TaskGroup() as tg:
-        tg.create_task(server.serve_forever())
-        tg.create_task(_pump_stdin(server))
+    await server.serve_forever()
 
 
 def main() -> None:
