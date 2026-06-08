@@ -131,7 +131,7 @@
 
 ## ADR-010: 문서는 AGENTS.md (인덱스) + architecture.md (스냅샷) + decisions.md (ADR) + runbook.md (운영)
 
-**Status**: Accepted
+**Status**: Superseded by ADR-020 (개발 일정·진행 기록을 roadmap.md/CHANGELOG.md로 분리)
 
 **Context**: MVP 시점에 어떤 문서를 만들지. 후보: contributing / architecture / features / decisions / test / runbook.
 
@@ -300,3 +300,21 @@ wine injectory_x86.exe --launch StarCraft.exe --inject bwapi-data/BWAPI.dll WMod
 **Rationale**: 드롭-비큐잉의 근거: 30초 전에 말한 "produce SCV"가 다음 매치 시작 순간 발화하면 놀랍고 틀린 동작이다. 명령은 현재 매치에 묶인 실시간 의도이고, 이는 MVP-A의 fire-and-forget 느낌과 일치한다.
 
 **Consequences**: `nc`는 MVP-B에서 은퇴한다(디버그 폴백으로도 두지 않음 — [AGENTS.md] done-criteria). 봇이 매치에 없을 때 말한 명령은 사라지므로 운영자는 봇 로그에서 매치 진입을 확인한 뒤 말한다. 명령을 버퍼링하고 싶어지면 그때 "마지막 명령만 connect 시 flush" 같은 정책으로 재검토.
+
+
+## ADR-020: 진행 기록을 roadmap.md(계획) + CHANGELOG.md(나간 것)로 분리, AGENTS.md는 인덱스만 ([ADR-010](#adr-010) 일부 대체)
+
+**Status**: Accepted
+
+**Context**: MVP 완료 후 기능 확장 단계로 넘어간다. [ADR-010](#adr-010)은 AGENTS.md에 "개발 일정"(체크박스 일람)을 두었는데, 이는 MVP의 고정된 A1~B5 목록에는 맞았으나 (1) 장기 비전과 미래 마일스톤을 담을 곳이 없고, (2) 완료 목록이 인덱스 문서를 비대하게 만들며, (3) "계획"과 "나간 것"이 한 체크박스에 뭉개져 있었다.
+
+**Decision**:
+
+-   **`docs/roadmap.md`** — 장기 계획. 마일스톤(coarse) 단위, 시간순 단일 축(오래된 것이 위). 헤더 옆 상태 배지 `== Done == / == Active == / == Planned ==`. 진행 중 마일스톤만 잠정 하위 체크리스트. 하위 단계 마크 `[x]`/`[ ]`/`[c]`(취소·대체, 삭제하지 않고 `~~취소선~~` + 이유). 완료 마일스톤도 체크리스트째 보존.
+-   **`CHANGELOG.md`**(리포 루트) — 나간 것 기록. 역시간순(최신이 위), 마일스톤 헤더에 날짜, 워크트리(브랜치) 단위 항목 + ADR. 무엇이 실제로 나갔는지의 권위 기록. roadmap의 잠정 목록과 어긋나면 CHANGELOG가 맞다.
+-   **AGENTS.md** — 개발 일정 섹션 삭제. 개요 + 문서 인덱스 + 유지 규칙(체크포인트 완료 의식 포함) + 에이전트 규칙만 남긴다.
+-   README.md, CHANGELOG 자동 생성은 보류(roadmap "미뤄둔 것").
+
+**Rationale**: 계획(forward, 비전·취소 흔적 포함)과 나간 것(backward, 깔끔한 출고 목록)은 수명과 독자가 다르다. "어디로 가나"는 roadmap을 위에서 아래로, "최근 뭐가 바뀌었나"는 CHANGELOG를 위에서 읽는다(정렬 방향이 반대인 게 의도). 진행 중 작업은 git 브랜치 + `plans/active/`가 이미 추적하므로 별도 라이브 백로그는 두지 않는다(썩는다).
+
+**Consequences**: 체크포인트 완료 시 갱신 지점이 늘어난다(plan→done, roadmap, CHANGELOG, 필요 시 architecture/decisions). AGENTS.md "문서 유지 규칙"의 완료 의식이 이 순서를 강제한다. 미래 마일스톤(MVP-C+)은 별도 세션에서 설계해 roadmap에 채운다.

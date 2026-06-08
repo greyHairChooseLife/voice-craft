@@ -90,11 +90,14 @@ MVP-A에서는 Python 서비스가 존재하기 전이라 `nc -l -k 5000`이 서
 
 ```
 voice-craft/
-├── AGENTS.md
+├── AGENTS.md             # 인덱스 + 문서 유지 규칙
+├── CHANGELOG.md          # 나간 것 기록, 워크트리 단위, 최신 기록이 상단
 ├── docs/
-│   ├── architecture.md   (이 파일)
+│   ├── roadmap.md        # 장기 계획, 마일스톤 단위
+│   ├── architecture.md
 │   ├── decisions.md
-│   └── runbook.md
+│   ├── runbook.md
+│   └── plans/            # 워크트리별 상세 플랜 (active/ → done/)
 ├── bot/                  # C++ BWAPI 봇 (.exe)
 │   ├── Dockerfile        # MinGW 크로스컴파일 환경
 │   ├── CMakeLists.txt
@@ -103,18 +106,18 @@ voice-craft/
 │   └── third_party/
 │       ├── nlohmann/json.hpp
 │       └── bwapi/        # vendored BWAPI 4.4.0 Client 소스 + 패치
-│           ├── include/  (헤더)
+│           ├── include/  (header files)
 │           ├── BWAPIClient/ Util/ Storm/ Shared/ BWAPILIB/  (Client lib 소스)
 │           ├── shim/Windows.h   (MinGW 소문자 헤더명 리다이렉트)
 │           └── svnrev.h         (Windows cscript 생성 단계 stub)
-└── voice/                # Python 음성 서비스 (MVP-B)
+└── voice/                # Python 음성 서비스
     ├── pyproject.toml    # uv + voice/.venv (pynput·sounddevice·numpy·faster-whisper)
     └── voice_craft/      # PTT·마이크·STT·NLU·asyncio TCP 서버
-        ├── server.py    # asyncio TCP 서버 (:5000), 봇 1개 연결 보유 (ADR-019)
-        ├── capture.py   # PTT `,` 토글 + 마이크 → numpy 버퍼 (B2, ADR-016)
-        ├── stt.py       # faster-whisper base.en 전사 (B3, ADR-017)
-        ├── nlu.py       # 키워드 NLU — 동사+명사 → 명령 (B4, ADR-018)
-        └── __main__.py  # 진입점 — 캡처→STT→NLU→봇 송신 결선 (B5, ADR-015)
+        ├── server.py    # asyncio TCP 서버 (:5000), 봇 1개 연결 보유
+        ├── capture.py   # PTT `,` 토글 + 마이크 → numpy 버퍼
+        ├── stt.py       # faster-whisper base.en 전사
+        ├── nlu.py       # 키워드 NLU — 동사+명사 → 명령
+        └── __main__.py  # 진입점 — 캡처→STT→NLU→봇 송신 결선
 ```
 
 최상위 컴포넌트 디렉터리 + 컴포넌트 내부의 자체 `src/` ([ADR-009](decisions.md#adr-009)).
