@@ -1,14 +1,8 @@
-# voice-craft 음성 서비스 (MVP-B). 단일 프로세스 2-스레드 (ADR-015):
-# 메인 = asyncio TCP 서버(:5000) + whisper 상주, 워커 = PTT·마이크·STT·NLU.
 [project]
 name = "voice-craft-voice"
 version = "0.1.0"
 description = "voice-craft 음성 서비스 — PTT·STT·NLU·asyncio TCP 서버 (:5000)"
 requires-python = ">=3.11"
-# 음성 경로 의존성은 실제로 쓰는 체크포인트에서 추가한다 (불필요한 ~GB
-# 다운로드 방지):
-#   B2 PTT/마이크: pynput, sounddevice, numpy
-#   B3 STT      : faster-whisper  ← 현재
 dependencies = [
     "pynput>=1.7",
     "sounddevice>=0.4",
