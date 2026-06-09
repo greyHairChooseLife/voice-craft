@@ -177,5 +177,5 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$VOICE_DIR"
-uv run python -m voice_craft
+uv run python .
 '''
