@@ -39,7 +39,7 @@ async def _main(stt: Transcriber) -> None:
 
 
 def main() -> None:
-    stt = Transcriber()
+    stt = Transcriber()  # at first, load model
     try:
         asyncio.run(_main(stt))
     except KeyboardInterrupt:
