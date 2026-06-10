@@ -21,9 +21,9 @@ PORT = 5000
 class CommandServer:
     """봇 1개 연결을 보유하는 asyncio TCP 서버 (단일 봇 불변식, ADR-019)."""
 
-    def __init__(self, host: str = HOST, port: int = PORT) -> None:
-        self._host = host
-        self._port = port
+    def __init__(self) -> None:
+        self._host = HOST
+        self._port = PORT
         self._loop: asyncio.AbstractEventLoop | None = None
         # 현재 봇 연결. 매치 사이 None (미연결) 일 수 있다.
         self._writer: asyncio.StreamWriter | None = None
