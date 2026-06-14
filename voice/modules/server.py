@@ -1,7 +1,6 @@
-"""asyncio TCP 명령 서버 (:5000) — `nc` 대체 (ADR-019).
+"""asyncio TCP 명령 서버
 
-봇은 클라이언트로 매치마다 새로 연결한다 (ADR-004). 서버는 매치 전체를
-가로질러 살아남으며 봇 1개 연결만 보유한다:
+봇은 클라이언트로 매치마다 새로 연결한다 (ADR-004). 서버는 봇 1개 연결만 보유한다:
 
     accept    → writer 저장
     disconnect→ writer 클리어
@@ -18,42 +17,56 @@ HOST = "127.0.0.1"
 PORT = 5000
 
 
-class CommandServer:
-    """봇 1개 연결을 보유하는 asyncio TCP 서버 (단일 봇 불변식, ADR-019)."""
+class VoiceServer:
+    """봇 1개 연결을 보유하는 asyncio TCP 서버 (단일 봇 불변식, ADR-019).
 
-    def __init__(self, host: str = HOST, port: int = PORT) -> None:
-        self._host = host
-        self._port = port
+    Attributes:
+        _host:
+        _port:
+        _loop:
+        _writer: Stream for connected bot client. None when there is no connection.
+        _peer:
+    """
+
+    def __init__(self) -> None:
+        self._host = HOST
+        self._port = PORT
         self._loop: asyncio.AbstractEventLoop | None = None
-        # 현재 봇 연결. 매치 사이 None (미연결) 일 수 있다.
         self._writer: asyncio.StreamWriter | None = None
         self._peer: str = ""
 
-    async def serve_forever(self) -> None:
+    async def start_infinitely(self) -> None:
         """서버를 띄우고 영구 listen. 매 매치 봇 연결을 가로질러 살아남는다."""
         self._loop = asyncio.get_running_loop()
-        server = await asyncio.start_server(self._on_bot, self._host, self._port)
+        # Bind non-blocking socket to network interface & start listen.
+        # Return server mananing object.
+        server = await asyncio.start_server(self._on_bot_connected, self._host, self._port)
         print(f"tcp: listening on {self._host}:{self._port}", flush=True)
         async with server:
+            # Loop infinitely to accept all connections and invoke the callback or task automatically
             await server.serve_forever()
 
-    async def _on_bot(
+    async def _on_bot_connected(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        """봇 연결 핸들러. accept → 보유, EOF → 클리어 (ADR-019 생애주기)."""
-        peer = _peername(writer)
+        """
+        Client(bot) 연결마다 자동으로 실행되는 callback.
+        asyncio.start_server에 전달하는 coroutine은 자동으로 task가 된다.
+        """
+        current_peer = _peername(writer)
 
         # 단일 봇 불변식: 이미 봇이 있으면 옛 연결을 닫고 교체한다.
         if self._writer is not None:
-            print(f"tcp: replacing bot {self._peer} with {peer}", flush=True)
+            print(f"tcp: replacing bot {self._peer} with {current_peer}", flush=True)
             self._close_writer(self._writer)
 
         self._writer = writer
-        self._peer = peer
-        print(f"tcp: bot connected {peer}", flush=True)
+        self._peer = current_peer
+        print(f"tcp: bot connected {current_peer}", flush=True)
 
         try:
             # 봇은 명령을 받기만 한다 (단방향). 연결 종료(EOF) 감지용으로만 읽는다.
+            # 그 전까지는 client 측에서 보내는 데이터가 없으니 계속 await 한다.
             while True:
                 data = await reader.read(1024)
                 if not data:
@@ -65,7 +78,7 @@ class CommandServer:
             if self._writer is writer:
                 self._writer = None
                 self._peer = ""
-                print(f"tcp: bot disconnected {peer}", flush=True)
+                print(f"tcp: bot disconnected {current_peer}", flush=True)
             self._close_writer(writer)
 
     def send(self, command: str) -> None:
@@ -85,10 +98,9 @@ class CommandServer:
         print(f"tcp: sent {line}", flush=True)
 
     def submit(self, command: str) -> None:
-        """워커 스레드 → 메인 루프 브리지 (ADR-015). 스레드 안전.
+        """워커 스레드 → 메인 루프 브리지 (ADR-015). thread-safe하게 전달해야 함.
 
         `loop.call_soon_threadsafe` 로 `send()` 를 루프 스레드에 예약한다.
-        B5 에서 음성 워커가 이 진입점으로 명령을 넘긴다.
         """
         if self._loop is None:
             print(f"tcp: server not running, dropped: {command}", flush=True)
@@ -104,6 +116,10 @@ class CommandServer:
 
 
 def _peername(writer: asyncio.StreamWriter) -> str:
+    """
+    Return:
+        {ip}:{port} of the client(bot)
+    """
     peer = writer.get_extra_info("peername")
     if peer:
         return f"{peer[0]}:{peer[1]}"
