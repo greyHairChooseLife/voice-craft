@@ -3,6 +3,7 @@
 # - binutils-mingw-w64-i686: dlltool (BWAPI.dll → MinGW import lib)
 # - mingw-w64-tools: gendef (.dll → .def)
 # - cmake, make: 빌드 드라이버
+# - clangd: 호스트 Neovim이 docker exec로 붙는 LSP (호스트엔 MinGW 헤더가 없어 직접 못 띔)
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mingw-w64-tools \
         cmake \
         make \
+        clangd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work

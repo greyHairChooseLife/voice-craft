@@ -1,0 +1,9 @@
+CompileFlags:
+  CompilationDatabase: build
+  Add:
+    - -isystem/usr/lib/gcc/i686-w64-mingw32/12-win32/include/c++
+    - -isystem/usr/lib/gcc/i686-w64-mingw32/12-win32/include/c++/i686-w64-mingw32
+    - -isystem/usr/lib/gcc/i686-w64-mingw32/12-win32/include/c++/backward
+    - -isystem/usr/lib/gcc/i686-w64-mingw32/12-win32/include
+    - -isystem/usr/lib/gcc/i686-w64-mingw32/12-win32/include-fixed
+    - -isystem/usr/i686-w64-mingw32/include
