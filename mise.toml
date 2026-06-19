@@ -210,3 +210,13 @@ set -euo pipefail
 cd "$VOICE_DIR"
 uv run python .
 '''
+
+
+[tasks.format]
+description = "format using clang-format"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$BOT_DIR"
+fd -e c -e cpp -e h -X clang-format -i
+'''
