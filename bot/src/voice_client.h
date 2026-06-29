@@ -18,8 +18,10 @@ class VoiceClient
         VoiceClient (const VoiceClient &) = delete;
         VoiceClient &operator= (const VoiceClient &) = delete;
 
+        using Linehandler = std::function<void (const std::string &)>;
+
         // 매 프레임 호출. 비차단. 완성된 각 라인마다 on_line(line) 호출.
-        void poll (const std::function<void (const std::string &)> &on_line);
+        void poll (const Linehandler &on_line);
 
       private:
         enum class State
@@ -31,7 +33,7 @@ class VoiceClient
 
         void start_connect ();
         void check_connect ();
-        void recv_lines (const std::function<void (const std::string &)> &on_line);
+        void recv_lines (const Linehandler &on_line);
         void drop (); // 소켓 닫고 Disconnected 로
 
         std::string host_;

@@ -25,7 +25,7 @@ VoiceClient::~VoiceClient ()
 }
 
 void
-VoiceClient::poll (const std::function<void (const std::string &)> &on_line)
+VoiceClient::poll (const VoiceClient::Linehandler &on_line)
 {
         if (!wsa_ready_)
                 return;
@@ -111,7 +111,7 @@ VoiceClient::check_connect ()
 }
 
 void
-VoiceClient::recv_lines (const std::function<void (const std::string &)> &on_line)
+VoiceClient::recv_lines (const VoiceClient::Linehandler &on_line)
 {
         char chunk[1024];
         for (;;)
