@@ -14,11 +14,6 @@ set(BWAPI ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bwapi)
 # NOMINMAX: windows.h 의 min/max 매크로 차단. _WIN32_WINNT: shared memory/pipe API.
 add_compile_definitions(NOMINMAX=1 _WIN32_WINNT=0x0501)
 
-# =============================================================================
-# 2. Static 라이브러리 target: bwapiclient
-#    vendored BWAPI Client (prebuilt 없음 → 소스에서 함께 빌드).
-#    shim: <Windows.h> → <windows.h> (MinGW 소문자). 루트: svnrev.h stub.
-# =============================================================================
 include_directories(
     ${BWAPI}/shim
     ${BWAPI}
@@ -30,6 +25,11 @@ include_directories(
     ${BWAPI}/Shared
 )
 
+# =============================================================================
+# 2. Static 라이브러리 target: bwapiclient
+#    vendored BWAPI Client (prebuilt 없음 → 소스에서 함께 빌드).
+#    shim: <Windows.h> → <windows.h> (MinGW 소문자). 루트: svnrev.h stub.
+# =============================================================================
 file(GLOB_RECURSE BWAPI_CLIENT_SRC
     ${BWAPI}/BWAPIClient/Source/*.cpp
     ${BWAPI}/Util/Source/Util/*.cpp
