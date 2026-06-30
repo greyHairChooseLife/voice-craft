@@ -85,6 +85,7 @@ void
 VoiceClient::check_connect ()
 {
         // connect 완료 여부를 비차단으로 확인: 쓰기 가능 = 성공, except = 실패.
+        // 비차단 connect의 readiness는 writable 여부로 확인한다. TCP 연결의 규칙
         fd_set write_set;
         fd_set except_set;
         FD_ZERO (&write_set);
@@ -93,11 +94,15 @@ VoiceClient::check_connect ()
         FD_SET (sock_, &except_set);
 
         timeval zero{}; // 즉시 반환 (블록 안 함)
+
+        // Winsock은 내부적으로 fd_set 자체에서 가장 높은 소켓을 알아내기 때문에 nfds가 필요
+        // 없습니다. 따라서 POSIX에서의 sock_ + 1 규칙은 Windows에서는 의미가 없고, 0을 넣어도 정상
+        // 동작합니다.
         int rc = select (0, nullptr, &write_set, &except_set, &zero);
-        if (rc <= 0)
+        if (rc == 0)
                 return; // 아직 진행 중
 
-        if (FD_ISSET (sock_, &except_set))
+        if (rc < 0 || FD_ISSET (sock_, &except_set))
         {
                 drop (); // connect 실패 → 재시도
                 return;
@@ -132,6 +137,7 @@ VoiceClient::recv_lines (const VoiceClient::Linehandler &on_line)
                 // n < 0
                 if (WSAGetLastError () == WSAEWOULDBLOCK)
                         break; // 데이터 없음 — 정상, 비차단 반환점
+
                 std::cout << "voice: recv error" << std::endl;
                 drop ();
                 return;
