@@ -16,6 +16,8 @@ BOT_DIR = "{{config_root}}/bot"
 VOICE_DIR = "{{config_root}}/voice"
 # 봇 빌드용 Docker 이미지 태그.
 BOT_IMAGE = "voice-craft-bot-build"
+# clangd LSP용 상시 실행 컨테이너 이름 (docker exec로 붙는 대상, ADR-014 빌드 환경 재사용).
+BOT_DEV_CONTAINER = "voice-craft-bot-lsp"
 # Wine virtual desktop 크기 (i3 윈도우 모드용).
 # BW 1.16.1은 내부 렌더가 640x480 고정이라 창을 키워도 게임은 안 커지고 검은 여백만
 # 늘어난다 → 창을 게임 크기에 맞춘다.
@@ -111,7 +113,7 @@ wine injectory_x86.exe --verbose --launch StarCraft.exe \
 # 호스트엔 MinGW 미설치.
 
 [tasks.bot-image]
-description = "봇 빌드용 Docker 이미지 빌드 (Debian + MinGW, 멱등)"
+description = "봇 빌드용 Docker 이미지 빌드 (Debian + MinGW)"
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
@@ -124,16 +126,45 @@ depends = ["bot-image"]
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-# --user 로 호스트 UID 매핑 (산출물이 root 소유로 안 생기게).
+# --user 로 호스트 UID 매핑 (산출물이 root 소유로 안 생기게)
+# 호스트와 동일 절대경로에 마운트 → compile_commands.json의 절대경로가 bot-lsp-up 컨테이너(클랑드)에서도 그대로 유효
 docker run --rm \
   --user "$(id -u):$(id -g)" \
-  -v "$BOT_DIR:/work" -w /work \
+  -v "$BOT_DIR:$BOT_DIR" -w "$BOT_DIR" \
   "$BOT_IMAGE" sh -c '
-    cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+    cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
     cmake --build build -j
   '
 echo "산출물:"
 ls -la "$BOT_DIR/build/voice-craft-bot.exe"
+echo "compile_commands.json (clangd 용):"
+ls -la "$BOT_DIR/build/compile_commands.json"
+'''
+
+[tasks.bot-lsp-up]
+description = "clangd LSP용 상시 컨테이너 시작"
+depends = ["bot-image"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -n "$(docker ps -q -f name="^${BOT_DEV_CONTAINER}$")" ]; then
+  echo "이미 실행 중: $BOT_DEV_CONTAINER"
+  exit 0
+fi
+docker rm -f "$BOT_DEV_CONTAINER" >/dev/null 2>&1 || true
+docker run --rm -d --name "$BOT_DEV_CONTAINER" \
+  --user "$(id -u):$(id -g)" \
+  -v "$BOT_DIR:$BOT_DIR" -w "$BOT_DIR" \
+  "$BOT_IMAGE" sleep infinity
+echo "LSP ready: $BOT_DEV_CONTAINER"
+'''
+
+[tasks.bot-lsp-down]
+description = "clangd LSP용 상시 컨테이너 종료"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+docker rm -f "$BOT_DEV_CONTAINER"
 '''
 
 [tasks.bot-run]
@@ -178,4 +209,14 @@ run = '''
 set -euo pipefail
 cd "$VOICE_DIR"
 uv run python .
+'''
+
+
+[tasks.format]
+description = "format using clang-format"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$BOT_DIR"
+fd -e c -e cpp -e h -X clang-format -i
 '''

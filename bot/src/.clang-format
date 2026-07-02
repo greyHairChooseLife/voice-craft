@@ -1,0 +1,4 @@
+BasedOnStyle: GNU
+IndentWidth: 8
+BreakBeforeBraces: Allman
+ColumnLimit: 100
