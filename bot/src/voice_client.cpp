@@ -14,6 +14,7 @@ VoiceClient::VoiceClient (std::string host, uint16_t port) : host_ (std::move (h
         else
         {
                 std::cout << "voice: WSAStartup failed" << std::endl;
+                std::exit (1);
         }
 }
 
