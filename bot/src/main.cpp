@@ -17,11 +17,6 @@
 
 using namespace BWAPI;
 
-// ADR-006: Command Center 에서 SCV 한 기 훈련.
-// MVP-A 는 스톡 melee 시작 상태(CC 1기 + SCV 4기 + 미네랄 50, ADR-007)라 후보
-// 선택이 필요 없다 — 첫 Command Center 를 찾아 train. 호출 직후 getLastError()
-// 로깅: train() 은 미네랄/서플라이/큐 부족 시 조용히 실패하므로 로그가 있어야
-// 이유를 안다.
 static void
 produce_scv ()
 {
@@ -38,8 +33,6 @@ produce_scv ()
         std::cout << "produce_scv: no Command Center found" << std::endl;
 }
 
-// A5: 한 라인을 JSON 으로 파싱해 cmd 필드로 디스패치.
-// ADR-008: 파싱 실패·미지 명령은 로깅 후 드롭, 봇 크래시 금지.
 static void
 dispatch (const std::string &line)
 {
@@ -75,8 +68,10 @@ dispatch (const std::string &line)
         }
 }
 
+namespace
+{
 // connect BWAPI.dll through shared-memory
-static void
+void
 reconnect ()
 {
         while (!BWAPIClient.connect ())
@@ -90,7 +85,7 @@ reconnect ()
  * 게임 상태를 업데이트합니다.
  * BWAPI 클라이언트를 업데이트하고, 연결이 끊어졌을 경우 재연결을 시도합니다.
  */
-static void
+void
 update_game_state ()
 {
         BWAPIClient.update ();
@@ -99,6 +94,7 @@ update_game_state ()
                 std::cout << "reconnecting..." << std::endl;
                 reconnect ();
         }
+}
 }
 
 int
