@@ -75,12 +75,29 @@ dispatch (const std::string &line)
         }
 }
 
+// connect BWAPI.dll through shared-memory
 static void
 reconnect ()
 {
         while (!BWAPIClient.connect ())
         {
                 std::this_thread::sleep_for (std::chrono::milliseconds{ 1000 });
+        }
+        std::cout << "connected to the BWAPI";
+}
+
+/**
+ * 게임 상태를 업데이트합니다.
+ * BWAPI 클라이언트를 업데이트하고, 연결이 끊어졌을 경우 재연결을 시도합니다.
+ */
+static void
+update_game_state ()
+{
+        BWAPIClient.update ();
+        if (!BWAPIClient.isConnected ())
+        {
+                std::cout << "reconnecting..." << std::endl;
+                reconnect ();
         }
 }
 
@@ -90,12 +107,12 @@ main ()
         std::cout << "voice-craft-bot: connecting to BWAPI..." << std::endl;
         reconnect ();
 
-        // 명령 서버 클라이언트. 봇↔서버 연결은 매치 수명과 무관하게 유지된다
-        // (ADR-004 note: 봇↔BWAPI 와 봇↔서버는 별개의 두 연결).
+        // 명령 서버 클라이언트. 봇↔서버 연결은 매치 수명과 무관하게 유지
+        // (봇↔BWAPI 와 봇↔서버는 별개의 두 연결)
         VoiceClient voice ("127.0.0.1", 5000);
-        // A5: 받은 라인마다 JSON 파싱·디스패치 (A4 의 echo 콜백 자리를 그대로
-        // 대체).
         auto on_line = [] (const std::string &line) { dispatch (line); };
+
+        voice.poll (on_line); // just start connection to the voice-server
 
         while (true)
         {
@@ -103,30 +120,19 @@ main ()
                 std::cout << "waiting to enter match" << std::endl;
                 while (!Broodwar->isInGame ())
                 {
-                        BWAPIClient.update ();
-                        if (!BWAPIClient.isConnected ())
-                        {
-                                std::cout << "reconnecting..." << std::endl;
-                                reconnect ();
-                        }
-                        voice.poll (on_line);
+                        std::this_thread::sleep_for (std::chrono::milliseconds{ 1000 });
+                        update_game_state ();
                 }
 
-                // 테스트용: 사람이 마우스/키보드로도 유닛을 조종할 수 있게
-                // (기본은 off). 봇 명령 경로와 무관 — 디버깅 편의일 뿐이라
-                // 나중에 제거 가능.
-                Broodwar->enableFlag (Flag::UserInput);
-
-                // A3 통과 조건: 매치 진입 시 한 번만 출력
+                // 매치 시작
                 Broodwar->sendText ("hello voice-craft, this is SANGYEON");
-                std::cout << "in match: sent hello" << std::endl;
+                Broodwar->enableFlag (
+                    Flag::UserInput); // 테스트용: 사람이 마우스/키보드로도 유닛을 조종할 수 있게
 
-                // 매치 동안 프레임 진행. ADR-005: update() 직후가 polling 지점.
+                // 매치 동안 프레임 진행
                 while (Broodwar->isInGame ())
                 {
-                        BWAPIClient.update ();
-                        if (!BWAPIClient.isConnected ())
-                                break;
+                        update_game_state ();
                         voice.poll (on_line);
                 }
                 std::cout << "match ended" << std::endl;
