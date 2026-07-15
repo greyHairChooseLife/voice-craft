@@ -2,11 +2,12 @@
 
 스타크래프트: 브루드워를 **음성 명령만으로** 플레이할 수 있게 하는 도구.
 
-지금까지의 진행과 앞으로의 계획은 [docs/roadmap.md](docs/roadmap.md), 실제 작업 기록(source of truth)은 [CHANGELOG.md](CHANGELOG.md), 한 번 돌려보려면 [docs/runbook.md](docs/runbook.md).
+프로젝트의 정체성·방향은 [docs/vision.md](docs/vision.md), 장기 계획은 [docs/roadmap.md](docs/roadmap.md), 실제 작업 기록(source of truth)은 [CHANGELOG.md](CHANGELOG.md), 한 번 돌려보려면 [docs/runbook.md](docs/runbook.md).
 
 
 ## 문서 구조
 
+-   [`docs/vision.md`](docs/vision.md) — **프로젝트 정체성·방향**. "무엇이고 왜 하는가?" 아이디어, 게임 모드, 제약, 안전장치.
 -   [`docs/roadmap.md`](docs/roadmap.md) — **장기 계획**. "어디로 가는가?" 마일스톤 단위. 완료·진행·예정 상태와 잠정 체크리스트.
 -   [`CHANGELOG.md`](CHANGELOG.md) — **나간 것 기록**. "최근 뭐가 바뀌었나?" 워크트리 단위, 최신이 위.
 -   [`docs/architecture.md`](docs/architecture.md) — **현재 구조 스냅샷**. "지금 어떻게 생겼나?" 각 결정 옆에 `[ADR-NNN](decisions.md#adr-nnn)` 인라인 링크.
@@ -30,7 +31,7 @@
 3.  `CHANGELOG.md` — 워크트리 단위 항목 추가 (최신이 위, 브랜치명 + ADR).
 4.  구조·결정이 바뀌었으면 위 "작업 중" 규칙대로 `architecture.md`/`decisions.md` 갱신.
 
-새 정보를 어디에 적을지 모를 때는: **사실/스냅샷 → architecture.md**, **이유 → decisions.md**, **명령어/조작 → runbook.md**, **계획 → roadmap.md**, **구현된 것 → CHANGELOG.md**.
+새 정보를 어디에 적을지 모를 때는: **정체성·방향 → vision.md**, **사실/스냅샷 → architecture.md**, **이유 → decisions.md**, **명령어/조작 → runbook.md**, **계획 → roadmap.md**, **구현된 것 → CHANGELOG.md**.
 
 
 ## 에이전트 실행 규칙
